@@ -371,10 +371,13 @@
       // Initialize map once
       useEffect(() => {
         if (!mapContainerRef.current || mapInstanceRef.current) return;
+
+        // 【修正箇所】preferCanvas: true を指定してSVGではなくCanvasで高速レンダリング
         const map = L.map(mapContainerRef.current, {
           center: [31.9077, 131.4202],
           zoom: 15,
-          zoomControl: true
+          zoomControl: true,
+          preferCanvas: true // ← ここに追加
         });
 
         const base = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', {
@@ -394,12 +397,34 @@
 
         map.on('click', (e) => handleMapClick(e.latlng.lat, e.latlng.lng));
         mapInstanceRef.current = map;
+
+        // 初期描画完了後にタイルの欠けを防ぐためサイズ再計算を実行
+        const timer = setTimeout(() => {
+          map.invalidateSize();
+        }, 200);
+
+        // コンテナのサイズ変化（要素の追加や画面リサイズ）を監視して自動で全画面描画
+        let resizeObserver;
+        if (window.ResizeObserver && mapContainerRef.current) {
+          resizeObserver = new ResizeObserver(() => {
+            map.invalidateSize();
+          });
+          resizeObserver.observe(mapContainerRef.current);
+        }
+
+        return () => {
+          clearTimeout(timer);
+          if (resizeObserver) resizeObserver.disconnect();
+        };
       }, [handleMapClick]);
 
       // Update Map Marker on hazard change
       useEffect(() => {
         const map = mapInstanceRef.current;
         if (!map || !hazardResult) return;
+
+        // 診断結果やシミュレーションが表示されてレイアウトが変わった際にも再計算
+        map.invalidateSize();
 
         map.setView([hazardResult.lat, hazardResult.lng], 15);
 
@@ -662,9 +687,9 @@
                 <span className="text-sm font-bold text-slate-800">
                   宮崎市 洪水ハザードマップ（地図をクリックで任意地点を判定）
                 </span>
-                <span className="text-xs text-slate-400">国土地理院タイル重畳</span>
+                <span className="text-xs text-slate-400">国土地理院タイル重畳 (Canvas描画有効)</span>
               </div>
-              <div ref={mapContainerRef} className="w-full h-[400px] rounded-2xl border border-slate-200 z-0" />
+              <div ref={mapContainerRef} className="w-full h-[400px] min-h-[400px] relative rounded-2xl border border-slate-200 z-0" />
             </div>
 
             {/* Nearest Shelters List */}
