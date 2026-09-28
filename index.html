@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Miえるん | 宮崎市 洪水ハザード査定</title>
-  <meta name="description" content="Miえるん（みえるん）- 宮崎市の洪水浸水想定・避難所・水害リスクをピローソフトなカードとShopバイオレットの浮遊感あるインターフェースで即座に査定・可視化する防災アプリケーション。">
+  <title>Miえるん | 宮崎市 洪水・津波ハザード査定</title>
+  <meta name="description" content="Miえるん（みえるん）- 宮崎市の大淀川水系洪水浸水想定および南海トラフ巨大地震津波浸水想定、指定避難所・津波避難ビルを即座に査定・可視化する防災アプリケーション。">
 
-  <!-- GT Standard / Inter typography with tight negative tracking -->
+  <!-- Inter & Noto Sans JP typography -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
@@ -26,7 +26,10 @@
             'cool-stone': '#cccccc',
             'warm-fog': '#acb0aa',
             'shop-violet': '#5433eb',
+            'shop-ocean': '#0c66e4',
+            'tsunami-red': '#e03131',
             'violet-wash': '#c0b5f3',
+            'ocean-wash': '#b8dbfd',
             'slate-ink': '#332f2d',
             'ash-veil': '#665a54',
           },
@@ -42,7 +45,8 @@
             'shop-soft': '0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.06)',
             'shop-card': '0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.03)',
             'shop-sm': '0 2px 8px 0 rgba(0, 0, 0, 0.06)',
-            'shop-violet': '0 4px 24px 0 rgba(69, 36, 219, 0.34)',
+            'shop-violet': '0 4px 24px 0 rgba(84, 51, 235, 0.30)',
+            'shop-ocean': '0 4px 24px 0 rgba(12, 102, 228, 0.30)',
           }
         }
       }
@@ -113,49 +117,70 @@
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useEffect, useCallback, useRef } = React;
+    const { useState, useEffect, useCallback, useRef, useMemo } = React;
+
     // --- DATASETS ---
     const SAMPLE_LOCATIONS = [
-      { name: '市役所本庁舎 (橘通西)', address: '宮崎県宮崎市橘通西1丁目1-1', lat: 31.9077, lng: 131.4202 },
-      { name: 'JR宮崎駅 (錦町)', address: '宮崎県宮崎市錦町1-8', lat: 31.9157, lng: 131.4320 },
-      { name: '宮崎県庁 (橘通東)', address: '宮崎県宮崎市橘通東2丁目10-1', lat: 31.9111, lng: 131.4239 },
-      { name: '大淀4丁目 (大淀川南岸)', address: '宮崎県宮崎市大淀4丁目6-28', lat: 31.9023, lng: 131.4209 },
-      { name: '宮崎市民文化ホール (花山手東)', address: '宮崎県宮崎市花山手東3丁目26-1', lat: 31.8906, lng: 131.4053 },
-      { name: '宮崎市総合体育館 (宮崎駅東)', address: '宮崎県宮崎市宮崎駅東1丁目2-7', lat: 31.9168, lng: 131.4358 },
-      { name: 'イオンモール宮崎 (新別府町)', address: '宮崎県宮崎市新別府町江口862-1', lat: 31.9213, lng: 131.4552 },
-      { name: '宮崎大学 木花キャンパス', address: '宮崎県宮崎市学園木花台西1丁目1番地', lat: 31.8315, lng: 131.4147 },
-      { name: '清武総合支所 (清武町西新町)', address: '宮崎県宮崎市清武町西新町8-5', lat: 31.8596, lng: 131.3912 },
-      { name: '佐土原総合支所 (佐土原町)', address: '宮崎県宮崎市佐土原町下田島20627-1', lat: 32.0315, lng: 131.4932 },
-      { name: '高岡総合支所 (高岡町内山)', address: '宮崎県宮崎市高岡町内山2887', lat: 31.9702, lng: 131.3098 }
+      { name: '市役所本庁舎 (橘通西)', address: '宮崎県宮崎市橘通西1丁目1-1', lat: 31.9077, lng: 131.4202, area: '市街地中心部' },
+      { name: 'JR宮崎駅 (錦町)', address: '宮崎県宮崎市錦町1-8', lat: 31.9157, lng: 131.4320, area: '駅前市街地' },
+      { name: '宮崎港 (港1丁目)', address: '宮崎県宮崎市港1丁目1', lat: 31.9160, lng: 131.4640, area: '沿岸港湾部' },
+      { name: '青島神社参道 (青島)', address: '宮崎県宮崎市青島2丁目13-1', lat: 31.8037, lng: 131.4705, area: '南部沿岸観光地' },
+      { name: 'みやざき臨海公園 (一ツ葉)', address: '宮崎県宮崎市昭栄町223', lat: 31.9220, lng: 131.4678, area: '東部沿岸ビーチ' },
+      { name: '宮崎ブーゲンビリア空港', address: '宮崎県宮崎市赤江大字田吉', lat: 31.8765, lng: 131.4428, area: '南部沿岸低地' },
+      { name: '大淀4丁目 (南宮崎駅近接)', address: '宮崎県宮崎市大淀4丁目6-28', lat: 31.9023, lng: 131.4209, area: '大淀川南岸' },
+      { name: '宮崎市民文化ホール (花山手)', address: '宮崎県宮崎市花山手東3丁目26-1', lat: 31.8906, lng: 131.4053, area: '花山手丘陵高台' },
+      { name: 'イオンモール宮崎 (新別府町)', address: '宮崎県宮崎市新別府町江口862-1', lat: 31.9213, lng: 131.4552, area: '東部低地' },
+      { name: '佐土原総合支所 (佐土原町)', address: '宮崎県宮崎市佐土原町下田島20627-1', lat: 32.0315, lng: 131.4932, area: '北部平野部' },
+      { name: '宮崎大学 木花キャンパス', address: '宮崎県宮崎市学園木花台西1丁目1番地', lat: 31.8315, lng: 131.4147, area: '南部丘陵高台' }
     ];
 
+    // 宮崎市の避難所＆津波避難ビル・タワー情報
     const MIYAZAKI_SHELTERS = [
-      { id: 's-01', name: '宮崎市役所 (本庁舎・第4庁舎)', address: '宮崎市橘通西1丁目1-1', lat: 31.9077, lng: 131.4202, isFloodSafe: true, capacity: 400, structure: 'RC造 8階建（3階以上避難）', phone: '0985-25-2111', notes: '大淀川至近。1〜2階浸水想定のため3階以上を指定フロアとして使用。', elevation: 6 },
-      { id: 's-02', name: '宮崎市民文化ホール', address: '宮崎市花山手東3丁目26-1', lat: 31.8906, lng: 131.4053, isFloodSafe: true, capacity: 1200, structure: 'SRC造（丘陵高台）', phone: '0985-52-7722', notes: '花山手高台立地。浸水リスクなし。広域基幹拠点。', elevation: 38 },
-      { id: 's-03', name: '宮崎市総合体育館', address: '宮崎市宮崎駅東1丁目2-7', lat: 31.9168, lng: 131.4358, isFloodSafe: true, capacity: 1500, structure: 'RC造 2階建', phone: '0985-25-7272', notes: '宮崎中央公園内。2階アリーナが洪水時受入指定。', elevation: 7 },
-      { id: 's-04', name: '宮崎小学校', address: '宮崎市旭1丁目4-1', lat: 31.9103, lng: 131.4251, isFloodSafe: true, capacity: 600, structure: 'RC造 3階建（2階以上避難）', phone: '0985-24-3454', notes: '大淀川北岸エリア。校舎2階以上を使用。', elevation: 6 },
-      { id: 's-05', name: '宮崎南小学校', address: '宮崎市恒久3丁目11-1', lat: 31.8978, lng: 131.4218, isFloodSafe: true, capacity: 650, structure: 'RC造 3階建（2階以上避難）', phone: '0985-51-1631', notes: '南宮崎エリア。垂直避難対応。', elevation: 5 },
-      { id: 's-06', name: '大淀小学校', address: '宮崎市淀川1丁目2-1', lat: 31.9042, lng: 131.4175, isFloodSafe: true, capacity: 700, structure: 'RC造 4階建（2階以上避難）', phone: '0985-51-3141', notes: '大淀川南岸堤防近接。必ず2階以上へ移動。', elevation: 6 },
-      { id: 's-07', name: '宮崎大学 木花キャンパス体育館', address: '宮崎市学園木花台西1-1', lat: 31.8315, lng: 131.4147, isFloodSafe: true, capacity: 2500, structure: 'RC造・高台拠点', phone: '0985-58-7111', notes: '高台立地。浸水・津波の恐れのない安全拠点。', elevation: 42 },
-      { id: 's-08', name: '清武中学校', address: '宮崎市清武町船引193', lat: 31.8562, lng: 131.3934, isFloodSafe: true, capacity: 650, structure: 'RC造 3階建', phone: '0985-85-1155', notes: '清武地区避難所。清武川増水時は高台校舎を利用。', elevation: 25 },
-      { id: 's-09', name: '佐土原中学校', address: '宮崎市佐土原町上田島1414', lat: 32.0452, lng: 131.4589, isFloodSafe: true, capacity: 700, structure: 'RC造 3階建', phone: '0985-74-0021', notes: '上田島高台。一ツ瀬川氾濫時にも安全な避難所。', elevation: 35 },
-      { id: 's-10', name: '平和が丘小学校', address: '宮崎市平和が丘北町1-1', lat: 31.9472, lng: 131.4115, isFloodSafe: true, capacity: 600, structure: 'RC造 3階建（丘陵高台）', phone: '0985-23-0100', notes: '平和台丘陵。浸水想定なし。', elevation: 45 }
+      { id: 's-01', name: '宮崎市役所 (本庁舎・第4庁舎)', address: '宮崎市橘通西1丁目1-1', lat: 31.9077, lng: 131.4202, isFloodSafe: true, isTsunamiSafe: true, isTsunamiTower: false, capacity: 400, structure: 'RC造 8階建（3階以上避難）', phone: '0985-25-2111', notes: '大淀川破堤・津波時は3階以上を指定フロアとして使用。', elevation: 6 },
+      { id: 's-02', name: '宮崎市民文化ホール', address: '宮崎市花山手東3丁目26-1', lat: 31.8906, lng: 131.4053, isFloodSafe: true, isTsunamiSafe: true, isTsunamiTower: false, capacity: 1200, structure: 'SRC造（丘陵高台）', phone: '0985-52-7722', notes: '標高38m。津波・洪水ともに完全に区域外となる超堅牢高台拠点。', elevation: 38 },
+      { id: 's-03', name: '宮崎市総合体育館', address: '宮崎市宮崎駅東1丁目2-7', lat: 31.9168, lng: 131.4358, isFloodSafe: true, isTsunamiSafe: true, isTsunamiTower: false, capacity: 1500, structure: 'RC造 2階建', phone: '0985-25-7272', notes: '宮崎中央公園内。2階フロアが洪水・津波受入指定。', elevation: 7 },
+      { id: 's-04', name: '宮崎港 津波避難施設 (避難タワー)', address: '宮崎市港1丁目 地先', lat: 31.9165, lng: 131.4645, isFloodSafe: false, isTsunamiSafe: true, isTsunamiTower: true, capacity: 300, structure: '鉄骨造 高床避難デッキ（海抜12m）', phone: '0985-25-2111', notes: '【津波緊急避難施設】港湾・海岸作業者の即時緊急退避用。一般居住者は内陸高台推奨。', elevation: 13 },
+      { id: 's-05', name: '青島中学校 (津波緊急指定避難所)', address: '宮崎市青島6丁目1-1', lat: 31.8021, lng: 131.4640, isFloodSafe: true, isTsunamiSafe: true, isTsunamiTower: false, capacity: 600, structure: 'RC造 3階建（高台校舎）', phone: '0985-65-1004', notes: '海抜18mの高台立地。青島沿岸部からの緊急避難最短拠点。', elevation: 18 },
+      { id: 's-06', name: '一ツ葉 津波避難タワー (サンビーチ一ツ葉)', address: '宮崎市新別府町前浜1401-2', lat: 31.9288, lng: 131.4695, isFloodSafe: false, isTsunamiSafe: true, isTsunamiTower: true, capacity: 250, structure: '鉄骨造 展望避難デッキ（海抜14m）', phone: '0985-25-2111', notes: '【津波避難タワー】みやざき臨海公園至近。津波警報発令時に直ちに上層部へ。', elevation: 14 },
+      { id: 's-07', name: '宮崎小学校', address: '宮崎市旭1丁目4-1', lat: 31.9103, lng: 131.4251, isFloodSafe: true, isTsunamiSafe: true, isTsunamiTower: false, capacity: 600, structure: 'RC造 3階建（2階以上避難）', phone: '0985-24-3454', notes: '市街地東部。校舎3階以上を使用。', elevation: 6 },
+      { id: 's-08', name: '赤江東中学校 (津波指定避難ビル)', address: '宮崎市田吉5310-1', lat: 31.8902, lng: 131.4420, isFloodSafe: true, isTsunamiSafe: true, isTsunamiTower: false, capacity: 750, structure: 'RC造 4階建（3階以上避難）', phone: '0985-51-3444', notes: '宮崎空港・赤江低地エリアの津波避難指定ビル。屋上および3階以上へ。', elevation: 5 },
+      { id: 's-09', name: '宮崎大学 木花キャンパス体育館', address: '宮崎市学園木花台西1-1', lat: 31.8315, lng: 131.4147, isFloodSafe: true, isTsunamiSafe: true, isTsunamiTower: false, capacity: 2500, structure: 'RC造・標高42m丘陵拠点', phone: '0985-58-7111', notes: '標高42m。津波・洪水ともに完全に影響を受けない大規模広域避難拠点。', elevation: 42 },
+      { id: 's-10', name: '平和が丘小学校', address: '宮崎市平和が丘北町1-1', lat: 31.9472, lng: 131.4115, isFloodSafe: true, isTsunamiSafe: true, isTsunamiTower: false, capacity: 600, structure: 'RC造 3階建（丘陵高台）', phone: '0985-23-0100', notes: '平和台丘陵。標高45mで津波・河川浸水の懸念なし。', elevation: 45 }
     ];
 
-    const INUNDATION_RANK_DEFINITIONS = [
-      { level: 'none', depthLabel: '浸水想定区域外 (0m)', depthRangeText: '0m', humanImpact: '洪水による直接浸水被害は想定されていません。', buildingImpact: '建物構造への浸水被害なし。', evacuationAction: '自宅が安全な場合はその場にとどまる在宅避難が可能。', minDepth: 0, maxDepth: 0 },
-      { level: 'below_0_5', depthLabel: '0.5m未満 (大人の膝下程度)', depthRangeText: '0.1m — 0.5m', humanImpact: '膝下まで水が達し、水流があると歩行困難。側溝や蓋の脱落が見えなくなります。', buildingImpact: '床下浸水、および基礎の低い家屋では床上浸水。', evacuationAction: '浸水前の明るいうちに退避。周囲が冠水している場合は2階へ垂直避難。', minDepth: 0.1, maxDepth: 0.5 },
-      { level: '0_5_to_3_0', depthLabel: '0.5m — 3.0m (1階床上〜軒下)', depthRangeText: '0.5m — 3.0m', humanImpact: '大人の腰〜頭部を完全に超える深さ。屋外歩行避難は極めて危険。', buildingImpact: '木造家屋の1階部分が完全に水没。家具・設備は使用不能。', evacuationAction: '警戒レベル3または4で速やかに堅牢な指定避難所へ立ち退き避難。逃げ遅れたら2階へ。', minDepth: 0.5, maxDepth: 3.0 },
-      { level: '3_0_to_5_0', depthLabel: '3.0m — 5.0m (2階床上〜軒下)', depthRangeText: '3.0m — 5.0m', humanImpact: '2階建て住宅の2階居室まで水が到達。人的危害の危険度が急激に上昇。', buildingImpact: '2階建て住宅がほぼ水没。家屋損壊・流失の危険。', evacuationAction: '2階への垂直避難は危険。警戒レベル発令時に3階建以上の施設または高台へ避難。', minDepth: 3.0, maxDepth: 5.0 },
-      { level: '5_0_to_10_0', depthLabel: '5.0m — 10.0m (2階屋根没以上)', depthRangeText: '5.0m — 10.0m', humanImpact: '戸建て住宅の屋根を完全に水没させる甚大な氾濫。', buildingImpact: '戸建て家屋は水没および流失の危険。中層階まで浸水。', evacuationAction: '氾濫前の早期段階（レベル3）で区域外の安全高台へ広域避難が必須。', minDepth: 5.0, maxDepth: 7.2 },
-      { level: 'above_10_0', depthLabel: '10.0m以上 (壊滅的浸水深)', depthRangeText: '10.0m+', humanImpact: '都市機能が完全に水没する大規模氾濫。', buildingImpact: '中高層ビル以外は水没。', evacuationAction: '数キロメートル離れた高台地域への事前広域避難を完了してください。', minDepth: 7.0, maxDepth: 7.2 }
+    // 洪水浸水深ランク定義
+    const FLOOD_RANK_DEFINITIONS = [
+      { level: 'none', depthLabel: '浸水想定区域外 (0m)', depthRangeText: '0m', humanImpact: '洪水による直接浸水被害は想定されていません。', buildingImpact: '建物構造への浸水被害なし。', evacuationAction: '自宅が安全な場合はその場にとどまる在宅避難が可能。', minDepth: 0, maxDepth: 0, color: '#17191c' },
+      { level: 'below_0_5', depthLabel: '0.5m未満 (大人の膝下程度)', depthRangeText: '0.1m — 0.5m', humanImpact: '膝下まで水が達し、水流があると歩行困難。側溝や蓋の脱落が見えなくなります。', buildingImpact: '床下浸水、および基礎の低い家屋では床上浸水。', evacuationAction: '浸水前の明るいうちに退避。周囲が冠水している場合は2階へ垂直避難。', minDepth: 0.1, maxDepth: 0.5, color: '#f7f5a9' },
+      { level: '0_5_to_3_0', depthLabel: '0.5m — 3.0m (1階床上〜軒下)', depthRangeText: '0.5m — 3.0m', humanImpact: '大人の腰〜頭部を完全に超える深さ。屋外歩行避難は極めて危険。', buildingImpact: '木造家屋の1階部分が完全に水没。家具・設備は使用不能。', evacuationAction: '警戒レベル3または4で速やかに堅牢な指定避難所へ立ち退き避難。逃げ遅れたら2階へ。', minDepth: 0.5, maxDepth: 3.0, color: '#ffd8c0' },
+      { level: '3_0_to_5_0', depthLabel: '3.0m — 5.0m (2階床上〜軒下)', depthRangeText: '3.0m — 5.0m', humanImpact: '2階建て住宅の2階居室まで水が到達。人的危害の危険度が急激に上昇。', buildingImpact: '2階建て住宅がほぼ水没。家屋損壊・流失の危険。', evacuationAction: '2階への垂直避難は危険。警戒レベル発令時に3階建以上の施設または高台へ避難。', minDepth: 3.0, maxDepth: 5.0, color: '#ffb7b7' },
+      { level: '5_0_to_10_0', depthLabel: '5.0m — 10.0m (2階屋根没以上)', depthRangeText: '5.0m — 10.0m', humanImpact: '戸建て住宅の屋根を完全に水没させる甚大な氾濫。', buildingImpact: '戸建て家屋は水没および流失の危険。中層階まで浸水。', evacuationAction: '氾濫前の早期段階（レベル3）で区域外の安全高台へ広域避難が必須。', minDepth: 5.0, maxDepth: 7.2, color: '#ff9191' },
+      { level: 'above_10_0', depthLabel: '10.0m以上 (壊滅的浸水深)', depthRangeText: '10.0m+', humanImpact: '都市機能が完全に水没する大規模氾濫。', buildingImpact: '中高層ビル以外は水没。', evacuationAction: '数キロメートル離れた高台地域への事前広域避難を完了してください。', minDepth: 7.0, maxDepth: 7.2, color: '#f285c9' }
+    ];
+
+    // 南海トラフ巨大地震 津波浸水深ランク定義（津波は流速と漂流物が加わり、水深0.3mで致死危険あり）
+    const TSUNAMI_RANK_DEFINITIONS = [
+      { level: 'none', depthLabel: '津波浸水想定区域外 (0m)', depthRangeText: '0m', humanImpact: '南海トラフ最大津波想定での直接浸水域外です。', buildingImpact: '津波波力による直接倒壊の危険なし。', evacuationAction: '沿岸部や河口から離れていれば安全。海岸付近にいる場合は念のため高台へ。', minDepth: 0, maxDepth: 0, color: '#17191c' },
+      { level: 'below_0_3', depthLabel: '0.3m未満 (足首〜すね程度)', depthRangeText: '0.01m — 0.3m', humanImpact: '流速が速い津波では水深20cmでも足元をすくわれ歩行不能・流される危険。', buildingImpact: '敷地内冠水・床下浸水の恐れ。', evacuationAction: '沿岸・低地からは即座に退避。車は使わず徒歩で高台へ。', minDepth: 0.05, maxDepth: 0.3, color: '#ffff99' },
+      { level: '0_3_to_1_0', depthLabel: '0.3m — 1.0m (成人膝上〜腰高・致死域)', depthRangeText: '0.3m — 1.0m', humanImpact: '【致死率急増】水深0.5mの津波で流速が加わると100%の成人が立っていられず流出。', buildingImpact: '木造家屋の壁板破損、自動車やプロパンガスボンベが浮遊・漂流。', evacuationAction: '直ちに津波避難タワー、3階建て以上の堅牢ビル、または海抜10m以上の高台へ。', minDepth: 0.3, maxDepth: 1.0, color: '#ffe600' },
+      { level: '1_0_to_2_0', depthLabel: '1.0m — 2.0m (1階居室床上没)', depthRangeText: '1.0m — 2.0m', humanImpact: '屋外での生存は極めて困難。瓦礫・漂流物が猛烈な速度で衝突。', buildingImpact: '木造家屋の部分破壊・全面床上浸水。', evacuationAction: '平地に留まらず、鉄筋コンクリート造（RC）ビルの3階以上へ即時垂直避難。', minDepth: 1.0, maxDepth: 2.0, color: '#ff9900' },
+      { level: '2_0_to_5_0', depthLabel: '2.0m — 5.0m (1階水没〜2階床上)', depthRangeText: '2.0m — 5.0m', humanImpact: '人的被害壊滅的。木造住宅内にとどまることも不可能。', buildingImpact: '木造家屋の全面倒壊・流失が多発。コンクリート構造体のみ残存。', evacuationAction: '4階建以上の指定津波避難ビルまたは標高15m以上の丘陵へ退避。', minDepth: 2.0, maxDepth: 5.0, color: '#ff4d4d' },
+      { level: '5_0_to_10_0', depthLabel: '5.0m — 10.0m (2階水没・巨大津波)', depthRangeText: '5.0m — 10.0m', humanImpact: '強大な波力により構造物が一挙に破壊。海上保安庁・自衛隊も接近不能。', buildingImpact: '2階建て住宅は丸ごと水没または流出。強固なRC造建築も低層部破壊。', evacuationAction: '沿岸低地からの事前退避が絶対条件。内陸の高台（標高20m以上）へ避難。', minDepth: 5.0, maxDepth: 7.2, color: '#cc0066' },
+      { level: 'above_10_0', depthLabel: '10.0m以上 (最大級想定津波)', depthRangeText: '10.0m+', humanImpact: '沿岸部を完全に呑み込む壊滅的巨大津波。', buildingImpact: '中高層ビルを除きすべて流出・全壊。', evacuationAction: '数km内陸の高台、または花山手・平和台・学園木花台などの丘陵地帯へ直ちに避難。', minDepth: 7.0, maxDepth: 7.2, color: '#660099' }
     ];
 
     const MIYAZAKI_RIVERS_INFO = [
       { name: '大淀川 (Oyodo River)', code: '890915', length: '幹線流路延長 107km / 一級河川', feature: '都城・小林盆地の雨水を集め宮崎平野へ流下。大淀川破堤時は宮崎市中心部に広範な浸水。', telemetryUrl: 'https://www.river.go.jp/' },
       { name: '本庄川 (Honjo River)', code: '890916', length: '大淀川最大支流 (綾・国富・高岡)', feature: '九州山地からの急峻な出水が多く、高岡地区合流点でのバックウォーター現象に要警戒。', telemetryUrl: 'https://www.river.go.jp/' },
       { name: '清武川 (Kiyotake River)', code: '890917', length: '二級河川 / 鰐塚山系〜清武〜木花', feature: '清武町加納・船引の密集地を貫流。局地的大雨で短時間に水位が急上昇する特性。', telemetryUrl: 'https://www.river.go.jp/' },
-      { name: '八重川 (Yae River)', code: '890918', length: '二級河川 / 本郷〜赤江〜日向灘', feature: '低平地河川のため満潮時の大雨で内水氾濫が起きやすく空港低地部に影響。', telemetryUrl: 'https://www.river.go.jp/' }
+      { name: '八重川 (Yae River)', code: '890918', length: '二級河川 / 本郷〜赤江〜日向灘', feature: '低平地河川のため満潮時や津波遡上時に内水氾濫が起きやすく空港低地部に影響。', telemetryUrl: 'https://www.river.go.jp/' }
+    ];
+
+    const MIYAZAKI_TSUNAMI_INSIGHTS = [
+      { area: '青島・内海・折生迫 地区', height: '最大約 9m 〜 11m', arrival: '第1波到達 最短 16分', tips: '日向灘震源域に直面。地震直後に強い引き波または第1波が猛烈な速度で襲来。県道220号西側の山手丘陵へ直ちに登坂避難。' },
+      { area: '宮崎港・一ツ葉・赤江 地区', height: '最大約 7m 〜 9m', arrival: '第1波到達 最短 19分', tips: '砂浜・松林を乗り越えて内陸の低平地へ津波が急速浸入。海岸近くの人は津波避難タワーへ、それ以外は一ツ葉有料道路・内陸高台へ。' },
+      { area: '大淀川河口・橘通・市街地', height: '最大約 4m 〜 6m', arrival: '河川遡上到達 約 25分', tips: '津波が大淀川を逆流（遡上津波）し堤防を越水する危険。橋梁への接近を避け、鉄筋コンクリート造3階以上または南宮崎・大淀の高台へ。' },
+      { area: '佐土原・一ツ瀬川河口 地区', height: '最大約 8m 〜 10m', arrival: '第1波到達 最短 18分', tips: '一ツ瀬川河口から平野部へ広域遡上。遠浅海岸のため第2波以降に波高がさらに増大する傾向あり。上田島などの段丘高台へ避難。' }
     ];
 
     function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
@@ -180,7 +205,8 @@
       return { x, y, px, py };
     }
 
-    function mapColorToRiskLevel(r, g, b, a) {
+    // 洪水タイルのカラーマッピング
+    function mapFloodColorToRiskLevel(r, g, b, a) {
       if (a < 30) return 'none';
       const targets = [
         { level: 'above_10_0', r: 242, g: 133, b: 201 },
@@ -202,6 +228,31 @@
       return closest;
     }
 
+    // 津波タイルのカラーマッピング（国土地理院 04_tsunami_newlegend_data 基準）
+    function mapTsunamiColorToRiskLevel(r, g, b, a) {
+      if (a < 30) return 'none';
+      const targets = [
+        { level: 'above_10_0', r: 102, g: 0, b: 153 },
+        { level: '5_0_to_10_0', r: 204, g: 0, b: 102 },
+        { level: '2_0_to_5_0', r: 255, g: 77, b: 77 },
+        { level: '1_0_to_2_0', r: 255, g: 153, b: 0 },
+        { level: '0_3_to_1_0', r: 255, g: 230, b: 0 },
+        { level: 'below_0_3', r: 255, g: 255, b: 153 }
+      ];
+      let closest = 'below_0_3';
+      let minDiff = 999999;
+      for (const t of targets) {
+        const d = Math.sqrt(Math.pow(r - t.r, 2) + Math.pow(g - t.g, 2) + Math.pow(b - t.b, 2));
+        if (d < minDiff) {
+          minDiff = d;
+          closest = t.level;
+        }
+      }
+      if (minDiff > 130 && (r < 90 || g < 90 || b < 90)) return 'none';
+      return closest;
+    }
+
+    // 国土地理院 洪水タイル画像サンプリング
     async function sampleGsiFloodTile(lat, lng) {
       const zoom = 16;
       const { x, y, px, py } = latLngToTilePixel(lat, lng, zoom);
@@ -209,7 +260,7 @@
       return new Promise((resolve) => {
         const img = new Image();
         img.crossOrigin = 'anonymous';
-        const timer = setTimeout(() => resolve(null), 3500);
+        const timer = setTimeout(() => resolve(null), 3000);
         img.onload = () => {
           clearTimeout(timer);
           try {
@@ -219,7 +270,33 @@
             if (!ctx) return resolve(null);
             ctx.drawImage(img, 0, 0);
             const p = ctx.getImageData(px, py, 1, 1).data;
-            resolve(mapColorToRiskLevel(p[0], p[1], p[2], p[3]));
+            resolve(mapFloodColorToRiskLevel(p[0], p[1], p[2], p[3]));
+          } catch { resolve(null); }
+        };
+        img.onerror = () => { clearTimeout(timer); resolve('none'); };
+        img.src = tileUrl;
+      });
+    }
+
+    // 国土地理院 津波タイル画像サンプリング
+    async function sampleGsiTsunamiTile(lat, lng) {
+      const zoom = 16;
+      const { x, y, px, py } = latLngToTilePixel(lat, lng, zoom);
+      const tileUrl = `https://disaportaldata.gsi.go.jp/raster/04_tsunami_newlegend_data/${zoom}/${x}/${y}.png`;
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        const timer = setTimeout(() => resolve(null), 3000);
+        img.onload = () => {
+          clearTimeout(timer);
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 256;
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            if (!ctx) return resolve(null);
+            ctx.drawImage(img, 0, 0);
+            const p = ctx.getImageData(px, py, 1, 1).data;
+            resolve(mapTsunamiColorToRiskLevel(p[0], p[1], p[2], p[3]));
           } catch { resolve(null); }
         };
         img.onerror = () => { clearTimeout(timer); resolve('none'); };
@@ -267,8 +344,15 @@
       return null;
     }
 
-    function findNearbyShelters(lat, lng, maxCount = 6) {
-      const withDist = MIYAZAKI_SHELTERS.map(s => {
+    function findNearbyShelters(lat, lng, mode = 'flood', maxCount = 6) {
+      let filtered = MIYAZAKI_SHELTERS;
+      if (mode === 'tsunami') {
+        filtered = MIYAZAKI_SHELTERS.filter(s => s.isTsunamiSafe || s.isTsunamiTower || s.elevation >= 15);
+      } else {
+        filtered = MIYAZAKI_SHELTERS.filter(s => s.isFloodSafe || s.elevation >= 10);
+      }
+
+      const withDist = filtered.map(s => {
         const d = calculateDistanceMeters(lat, lng, s.lat, s.lng);
         return { ...s, distanceMeters: d, walkingMinutes: Math.max(1, Math.round(d / 80)) };
       });
@@ -276,21 +360,45 @@
       return withDist.slice(0, maxCount);
     }
 
-    async function analyzeHazardForLocation(lat, lng, address) {
-      const [tileRisk, elevation] = await Promise.all([
+    async function analyzeHazardForLocation(lat, lng, address, mode = 'flood') {
+      const [floodTileRisk, tsunamiTileRisk, elevation] = await Promise.all([
         sampleGsiFloodTile(lat, lng),
+        sampleGsiTsunamiTile(lat, lng),
         getGsiElevation(lat, lng)
       ]);
-      let riskLevel = tileRisk;
+
+      let riskLevel = mode === 'tsunami' ? tsunamiTileRisk : floodTileRisk;
+      
+      // フォールバック計算
       if (riskLevel === null) {
-        const distToOyodo = calculateDistanceMeters(lat, lng, 31.906, 131.422);
-        if (distToOyodo < 1200) riskLevel = '0_5_to_3_0';
-        else if (elevation !== null && elevation < 5) riskLevel = 'below_0_5';
-        else riskLevel = 'none';
+        if (mode === 'tsunami') {
+          // 海岸線（東経131.46付近）および標高からの近似
+          const isCoastNear = lng >= 131.45 && lat >= 31.78 && lat <= 32.05;
+          if (isCoastNear && elevation !== null && elevation <= 3.5) {
+            riskLevel = '2_0_to_5_0';
+          } else if (elevation !== null && elevation <= 7.0 && lng >= 131.43) {
+            riskLevel = '0_3_to_1_0';
+          } else {
+            riskLevel = 'none';
+          }
+        } else {
+          const distToOyodo = calculateDistanceMeters(lat, lng, 31.906, 131.422);
+          if (distToOyodo < 1200) riskLevel = '0_5_to_3_0';
+          else if (elevation !== null && elevation < 5) riskLevel = 'below_0_5';
+          else riskLevel = 'none';
+        }
       }
-      const def = INUNDATION_RANK_DEFINITIONS.find(d => d.level === riskLevel) || INUNDATION_RANK_DEFINITIONS[0];
+
+      const definitions = mode === 'tsunami' ? TSUNAMI_RANK_DEFINITIONS : FLOOD_RANK_DEFINITIONS;
+      const def = definitions.find(d => d.level === riskLevel) || definitions[0];
+
+      // 沿岸までの推定距離
+      const coastLngRef = 131.465;
+      const isEastCoast = lng >= 131.41;
+      const estimatedDistToCoastKm = isEastCoast ? Math.max(0.1, Math.round(calculateDistanceMeters(lat, lng, lat, coastLngRef) / 100) / 10) : '> 6.0';
 
       return {
+        mode,
         address,
         lat,
         lng,
@@ -304,10 +412,15 @@
         buildingImpact: def.buildingImpact,
         evacuationAction: def.evacuationAction,
         elevationMeters: elevation,
+        estimatedDistToCoastKm,
+        tsunamiArrivalEst: lng >= 131.44 ? '約16〜20分 (第1波)' : '約25〜35分 (河川遡上)',
         timestamp: new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
       };
     }
+
     function App() {
+      // 災害モード ('flood' | 'tsunami')
+      const [hazardMode, setHazardMode] = useState('flood');
       const [currentAddress, setCurrentAddress] = useState('宮崎市橘通西1丁目1-1');
       const [inputQuery, setInputQuery] = useState('宮崎市橘通西1丁目1-1');
       const [hazardResult, setHazardResult] = useState(null);
@@ -316,43 +429,74 @@
       const [searchError, setSearchError] = useState(null);
       const [isHotlineOpen, setIsHotlineOpen] = useState(false);
       const [isReportOpen, setIsReportOpen] = useState(false);
+      const [prepTab, setPrepTab] = useState('checklist');
 
-      // Checklist state
+      // チェックリスト状態
       const [checkedItems, setCheckedItems] = useState(() => {
         try {
-          const s = localStorage.getItem('steep_flood_checklist');
+          const s = localStorage.getItem('steep_disaster_checklist');
           return s ? JSON.parse(s) : {};
         } catch { return {}; }
       });
-      const [prepTab, setPrepTab] = useState('checklist');
 
-      // Map references
+      // Leaflet Map References
       const mapContainerRef = useRef(null);
       const mapInstanceRef = useRef(null);
       const markerRef = useRef(null);
       const sheltersGroupRef = useRef(null);
+      const floodOverlayRef = useRef(null);
+      const tsunamiOverlayRef = useRef(null);
 
-      const runAssessment = useCallback(async (query) => {
+      // ハザード査定実行
+      const runAssessment = useCallback(async (query, mode = hazardMode) => {
         setIsLoading(true);
         setSearchError(null);
         try {
           const geo = await geocodeAddress(query);
           if (!geo) {
-            setSearchError('住所が見つかりませんでした。宮崎市内の地名（例: 橘通西、大淀、清武町など）を指定してください。');
+            setSearchError('住所が見つかりませんでした。宮崎市内の地名（例: 橘通西、青島、港1丁目、大淀など）を指定してください。');
             setIsLoading(false);
             return;
           }
           setCurrentAddress(geo.displayName);
           setInputQuery(geo.displayName);
-          const hazard = await analyzeHazardForLocation(geo.lat, geo.lng, geo.displayName);
+          const hazard = await analyzeHazardForLocation(geo.lat, geo.lng, geo.displayName, mode);
           setHazardResult(hazard);
-          setNearbyShelters(findNearbyShelters(geo.lat, geo.lng, 6));
+          setNearbyShelters(findNearbyShelters(geo.lat, geo.lng, mode, 6));
         } catch (e) {
           setSearchError('ハザード解析データの照会に失敗しました。');
         } finally {
           setIsLoading(false);
         }
-      }, []);
+      }, [hazardMode]);
+
+      // モード切り替えハンドラ
+      const handleModeChange = (newMode) => {
+        if (newMode === hazardMode) return;
+        setHazardMode(newMode);
+
+        // レイヤー切り替え
+        if (floodOverlayRef.current && tsunamiOverlayRef.current) {
+          if (newMode === 'tsunami') {
+            floodOverlayRef.current.setOpacity(0);
+            tsunamiOverlayRef.current.setOpacity(0.65);
+          } else {
+            tsunamiOverlayRef.current.setOpacity(0);
+            floodOverlayRef.current.setOpacity(0.60);
+          }
+        }
+
+        // 再計算
+        if (hazardResult) {
+          setIsLoading(true);
+          analyzeHazardForLocation(hazardResult.lat, hazardResult.lng, hazardResult.address, newMode)
+            .then(res => {
+              setHazardResult(res);
+              setNearbyShelters(findNearbyShelters(hazardResult.lat, hazardResult.lng, newMode, 6));
+            })
+            .finally(() => setIsLoading(false));
+        }
+      };
 
       const handleMapClick = useCallback(async (lat, lng) => {
         setIsLoading(true);
@@ -361,13 +505,13 @@
           const formatted = `宮崎市（${lat.toFixed(4)}, ${lng.toFixed(4)}）`;
           setCurrentAddress(formatted);
           setInputQuery(formatted);
-          const hazard = await analyzeHazardForLocation(lat, lng, formatted);
+          const hazard = await analyzeHazardForLocation(lat, lng, formatted, hazardMode);
           setHazardResult(hazard);
-          setNearbyShelters(findNearbyShelters(lat, lng, 6));
+          setNearbyShelters(findNearbyShelters(lat, lng, hazardMode, 6));
         } finally {
           setIsLoading(false);
         }
-      }, []);
+      }, [hazardMode]);
 
       const handleGPS = () => {
         if (!navigator.geolocation) {
@@ -381,9 +525,9 @@
             const label = `現在地 (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`;
             setCurrentAddress(label);
             setInputQuery(label);
-            const hazard = await analyzeHazardForLocation(latitude, longitude, label);
+            const hazard = await analyzeHazardForLocation(latitude, longitude, label, hazardMode);
             setHazardResult(hazard);
-            setNearbyShelters(findNearbyShelters(latitude, longitude, 6));
+            setNearbyShelters(findNearbyShelters(latitude, longitude, hazardMode, 6));
             setIsLoading(false);
           },
           () => {
@@ -393,28 +537,35 @@
         );
       };
 
-      // Leaflet Map Initialization
       useEffect(() => {
         if (!mapContainerRef.current || mapInstanceRef.current) return;
 
         const map = L.map(mapContainerRef.current, {
           center: [31.9077, 131.4202],
-          zoom: 15,
+          zoom: 14,
           zoomControl: true,
           preferCanvas: true
         });
 
-        // Pale tile layer
+        // 淡色背景地図タイル
         L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', {
-          maxZoom: 18, minZoom: 9,
+          maxZoom: 18, minZoom: 8,
           attribution: '&copy; 国土地理院'
         }).addTo(map);
 
-        // Official Flood overlay
-        L.tileLayer('https://disaportaldata.gsi.go.jp/raster/01_flood_l2_shinsuishin_data/{z}/{x}/{y}.png', {
+        // 洪水レイヤー（初期表示）
+        const floodLayer = L.tileLayer('https://disaportaldata.gsi.go.jp/raster/01_flood_l2_shinsuishin_data/{z}/{x}/{y}.png', {
           maxZoom: 17, minZoom: 2, opacity: 0.60,
-          attribution: '&copy; 国土交通省'
+          attribution: '&copy; 国土交通省（洪水L2）'
         }).addTo(map);
+        floodOverlayRef.current = floodLayer;
+
+        // 津波レイヤー（初期非表示）
+        const tsunamiLayer = L.tileLayer('https://disaportaldata.gsi.go.jp/raster/04_tsunami_newlegend_data/{z}/{x}/{y}.png', {
+          maxZoom: 17, minZoom: 2, opacity: 0.0,
+          attribution: '&copy; 国土交通省（南海トラフ津波想定）'
+        }).addTo(map);
+        tsunamiOverlayRef.current = tsunamiLayer;
 
         const shelters = L.layerGroup().addTo(map);
         sheltersGroupRef.current = shelters;
@@ -436,13 +587,15 @@
         map.invalidateSize();
         map.setView([hazardResult.lat, hazardResult.lng], 15);
 
-        // Steep Pin: Ink Black pill marker with Sienna Peach accent
+        const accentColor = hazardMode === 'tsunami' ? '#0c66e4' : '#5433eb';
+        const badgeBg = hazardMode === 'tsunami' ? '#091e42' : '#17191c';
+
         const pinHtml = `
           <div style="position: relative; display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -100%);">
-            <div style="background-color: #17191c; color: #ffffff; font-size: 11px; padding: 3px 10px; border-radius: 9999px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); white-space: nowrap; font-family: Inter, sans-serif;">
-              ${hazardResult.depthRangeText}
+            <div style="background-color: ${badgeBg}; color: #ffffff; font-size: 11px; padding: 3px 10px; border-radius: 9999px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); white-space: nowrap; font-family: Inter, sans-serif; font-weight:600; border: 1.5px solid ${accentColor};">
+              ${hazardMode === 'tsunami' ? '🌊 津波: ' : '🌧 洪水: '}${hazardResult.depthRangeText}
             </div>
-            <div style="width: 10px; height: 10px; background-color: #fbe1d1; border: 2px solid #17191c; border-radius: 9999px; margin-top: 3px;"></div>
+            <div style="width: 12px; height: 12px; background-color: ${accentColor}; border: 2.5px solid #ffffff; border-radius: 9999px; margin-top: 3px; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>
           </div>
         `;
         const icon = L.divIcon({ html: pinHtml, className: 'steep-pin', iconSize: [0, 0], iconAnchor: [0, 0] });
@@ -452,35 +605,50 @@
         } else {
           markerRef.current = L.marker([hazardResult.lat, hazardResult.lng], { icon }).addTo(map);
         }
-        markerRef.current.bindPopup(`<strong>${hazardResult.address}</strong><br><span style="font-size:12px;color:#777b86;">想定浸水深:</span> ${hazardResult.depthRangeText}`);
+        markerRef.current.bindPopup(`<strong>${hazardResult.address}</strong><br><span style="font-size:12px;color:#787574;">想定深:</span> <strong>${hazardResult.depthRangeText}</strong> (${hazardResult.depthLabel})<br><span style="font-size:11px;color:#787574;">地盤標高: ${hazardResult.elevationMeters ?? '測定中'}m</span>`);
 
-        // Shelters Markers (Paper White, circular pill, Ink text)
+        // 避難場所・津波避難ビルマーカー
         if (sheltersGroupRef.current) {
           sheltersGroupRef.current.clearLayers();
           nearbyShelters.forEach(s => {
+            const isTower = s.isTsunamiTower;
+            const bg = isTower ? '#0c66e4' : '#ffffff';
+            const color = isTower ? '#ffffff' : '#17191c';
+            const label = isTower ? '塔' : '避';
+
             const sHtml = `
-              <div style="background-color: #ffffff; color: #17191c; border: 1.5px solid #17191c; width: 24px; height: 24px; border-radius: 9999px; display: flex; align-items: center; justify-content: center; font-size: 11px; box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
-                避
+              <div style="background-color: ${bg}; color: ${color}; border: 2px solid ${isTower ? '#ffffff' : '#17191c'}; width: 26px; height: 26px; border-radius: 9999px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+                ${label}
               </div>
             `;
-            const sIcon = L.divIcon({ html: sHtml, className: 's-pin', iconSize: [24, 24], iconAnchor: [12, 12] });
+            const sIcon = L.divIcon({ html: sHtml, className: 's-pin', iconSize: [26, 26], iconAnchor: [13, 13] });
             const m = L.marker([s.lat, s.lng], { icon: sIcon });
             const walkingRouteUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(hazardResult.address)}&destination=${encodeURIComponent(s.name + ' ' + s.address)}&travelmode=walking`;
-            m.bindPopup(`<strong>${s.name}</strong><br><span style="color:#777b86;font-size:12px;">${s.address}</span><br>直線: 約${s.distanceMeters}m (徒歩約${s.walkingMinutes}分)<br><a href="${walkingRouteUrl}" target="_blank" rel="noreferrer" style="display:inline-block;margin-top:6px;font-size:12px;color:#17191c;text-decoration:underline;">徒歩ルート案内 →</a>`);
+            
+            m.bindPopup(`
+              <div style="font-size:13px;">
+                <div style="font-weight:700;margin-bottom:2px;">${s.name}</div>
+                <div style="font-size:11px;color:#787574;margin-bottom:4px;">${s.address}</div>
+                ${s.isTsunamiTower ? '<span style="background:#0c66e4;color:#fff;font-size:10px;padding:2px 6px;border-radius:9999px;font-weight:600;display:inline-block;margin-bottom:4px;">津波避難タワー</span><br>' : ''}
+                <div>直線: 約<strong>${s.distanceMeters}m</strong> (徒歩約${s.walkingMinutes}分)</div>
+                <div style="font-size:11px;color:#787574;">海抜標高: ${s.elevation}m</div>
+                <a href="${walkingRouteUrl}" target="_blank" rel="noreferrer" style="display:inline-block;margin-top:6px;font-size:12px;color:#5433eb;font-weight:600;text-decoration:underline;">徒歩ルート案内 →</a>
+              </div>
+            `);
             sheltersGroupRef.current.addLayer(m);
           });
         }
-      }, [hazardResult, nearbyShelters]);
+      }, [hazardResult, nearbyShelters, hazardMode]);
 
-      // Initial execution
+      // 初回ロード
       useEffect(() => {
-        runAssessment('宮崎市橘通西1丁目1-1');
+        runAssessment('宮崎市橘通西1丁目1-1', 'flood');
       }, [runAssessment]);
 
       const toggleCheck = (id) => {
         const next = { ...checkedItems, [id]: !checkedItems[id] };
         setCheckedItems(next);
-        try { localStorage.setItem('steep_flood_checklist', JSON.stringify(next)); } catch {}
+        try { localStorage.setItem('steep_disaster_checklist', JSON.stringify(next)); } catch {}
       };
 
       const checklistItems = [
@@ -488,10 +656,10 @@
         { id: '2', label: '非常食 (アルファ化米・高カロリー保存食)', cat: '備蓄食料' },
         { id: '3', label: '大容量モバイルバッテリー & 耐水コード', cat: '電力通信' },
         { id: '4', label: '携帯防災ラジオ (手回し/乾電池式)', cat: '情報収集' },
-        { id: '5', label: '高照度LEDライト・交換用乾電池', cat: '照明装備' },
+        { id: '5', label: '高照度LEDヘッドライト・交換乾電池', cat: '照明装備' },
         { id: '6', label: '救急医療品・常備処方薬・おくすり手帳', cat: '救急衛生' },
         { id: '7', label: '防水密閉ケース入り現金 (小銭含む)', cat: '貴重品' },
-        { id: '8', label: '防水レインウェア & 厚底ウォーキングシューズ', cat: '避難装備' }
+        { id: '8', label: '厚底スニーカー・ヘルメット・防塵笛', cat: '避難装備' }
       ];
 
       const completedCount = Object.values(checkedItems).filter(Boolean).length;
@@ -514,106 +682,147 @@
       const minWaterHeightPx = minWaterDepth * PIXELS_PER_METER;
       const minWaterTopY = GL_Y - minWaterHeightPx;
       const rangeBandHeightPx = maxWaterHeightPx - minWaterHeightPx;
+
+      // テーマカラー切替
+      const isTsunami = hazardMode === 'tsunami';
+      const themeColorClass = isTsunami ? 'text-shop-ocean' : 'text-shop-violet';
+      const themeBgClass = isTsunami ? 'bg-shop-ocean' : 'bg-shop-violet';
+      const themeBorderClass = isTsunami ? 'border-shop-ocean' : 'border-shop-violet';
+      const themeShadowClass = isTsunami ? 'shadow-shop-ocean' : 'shadow-shop-violet';
+
       return (
         <div className="min-h-screen flex flex-col bg-canvas-mist text-ink-black">
           
-          {/* Shop Top App Banner (Flush dark band, 48px height) */}
+          {/* Top Banner (Flush dark band, 48px height) */}
           <div className="bg-ink-black text-pure-white text-[12px] h-11 px-4 flex items-center justify-between no-print tracking-tight">
             <div className="max-w-[1200px] w-full mx-auto flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-shop-violet flex items-center justify-center text-[10px] font-bold">M</span>
-                <span className="font-medium text-pure-white">宮崎市 大淀川水系 L2想定最大規模 リアルタイム査定デスク</span>
-                <span className="hidden sm:inline text-cool-stone text-[11px]">· 国土地理院タイル接続</span>
+                <span className={`w-5 h-5 rounded-full ${themeBgClass} flex items-center justify-center text-[10px] font-bold text-white transition-colors`}>M</span>
+                <span className="font-medium text-pure-white">
+                  宮崎市 {isTsunami ? '南海トラフ巨大地震 津波浸水想定' : '大淀川水系 洪水浸水想定（L2想定最大規模）'} リアルタイム査定デスク
+                </span>
+                <span className="hidden sm:inline text-cool-stone text-[11px]">· 国土地理院・国土交通省API連携</span>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-[11px] text-warm-fog hidden md:inline">宮崎市危機管理課データ準拠</span>
-                <span className="w-2 h-2 rounded-full bg-shop-violet shadow-shop-violet"></span>
+                <span className="text-[11px] text-warm-fog hidden md:inline">宮崎市危機管理課公表データ準拠</span>
+                <span className={`w-2 h-2 rounded-full ${themeBgClass} ${themeShadowClass}`}></span>
               </div>
             </div>
           </div>
 
-          {/* Shop Header (Clean white bar, pillow controls, Shop wordmark style) */}
+          {/* App Header */}
           <header className="sticky top-0 z-30 bg-pure-white/95 backdrop-blur-md border-b border-faint-border shadow-shop-sm transition-colors">
-            <div className="max-w-[1200px] mx-auto px-6 h-18 py-3.5 flex items-center justify-between">
+            <div className="max-w-[1200px] mx-auto px-4 sm:px-6 h-18 py-3.5 flex items-center justify-between">
               
-              {/* Brand Logo with Shop Violet Accent Dot */}
+              {/* Brand Logo with dynamic Violet/Ocean accent */}
               <div className="flex items-center gap-3">
                 <div className="flex items-baseline">
                   <span className="font-bold text-2xl tracking-tighter text-ink-black">
                     Miえるん
                   </span>
-                  <span className="w-2 h-2 rounded-full bg-shop-violet ml-1"></span>
+                  <span className={`w-2.5 h-2.5 rounded-full ${themeBgClass} ml-1 transition-colors`}></span>
                 </div>
                 <span className="text-[12px] font-medium text-muted-gray tracking-tight border-l border-faint-border pl-3 hidden sm:inline">
-                  宮崎市 洪水ハザード査定
+                  宮崎市 洪水・津波ハザード査定
                 </span>
               </div>
 
-              {/* Action Pills */}
-              <div className="flex items-center gap-2.5">
+              {/* Mode Switcher Segmented Control */}
+              <div className="flex items-center p-1 rounded-pill bg-canvas-mist border border-faint-border shadow-inner">
+                <button
+                  type="button"
+                  onClick={() => handleModeChange('flood')}
+                  className={`h-8 px-4 rounded-pill text-[12px] font-semibold transition cursor-pointer flex items-center gap-1.5 ${
+                    !isTsunami
+                      ? 'bg-shop-violet text-pure-white shadow-shop-violet'
+                      : 'text-muted-gray hover:text-ink-black'
+                  }`}
+                >
+                  <span>🌧</span>
+                  <span>洪水 (河川氾濫)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleModeChange('tsunami')}
+                  className={`h-8 px-4 rounded-pill text-[12px] font-semibold transition cursor-pointer flex items-center gap-1.5 ${
+                    isTsunami
+                      ? 'bg-shop-ocean text-pure-white shadow-shop-ocean'
+                      : 'text-muted-gray hover:text-ink-black'
+                  }`}
+                >
+                  <span>🌊</span>
+                  <span>津波 (南海トラフ)</span>
+                </button>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2">
                 <button
                   onClick={() => setIsHotlineOpen(true)}
-                  className="h-10 px-5 rounded-pill bg-canvas-mist hover:bg-faint-border text-ink-black transition text-[13px] font-medium cursor-pointer shadow-shop-sm border border-faint-border"
+                  className="h-9 px-4 rounded-pill bg-canvas-mist hover:bg-faint-border text-ink-black transition text-[12px] font-medium cursor-pointer shadow-shop-sm border border-faint-border hidden sm:inline-flex items-center"
                 >
                   緊急連絡先
                 </button>
                 <button
                   onClick={() => setIsReportOpen(true)}
-                  className="h-10 px-6 rounded-pill bg-shop-violet hover:opacity-95 text-pure-white transition text-[13px] font-medium cursor-pointer flex items-center gap-2 shadow-shop-violet"
+                  className={`h-9 px-5 rounded-pill ${themeBgClass} hover:opacity-95 text-pure-white transition text-[12px] font-semibold cursor-pointer flex items-center gap-1.5 ${themeShadowClass}`}
                 >
-                  <span>査定レポート</span>
-                  <span className="text-violet-wash">→</span>
+                  <span>査定書</span>
+                  <span>→</span>
                 </button>
               </div>
             </div>
           </header>
 
-          {/* Main Content Area (Max-width 1200px, 64px section rhythm) */}
-          <main className="max-w-[1200px] w-full mx-auto px-4 sm:px-6 py-12 flex-1">
+          <main className="max-w-[1200px] w-full mx-auto px-4 sm:px-6 py-10 flex-1">
             
             {/* Hero Constellation Section */}
-            <section className="mb-16 text-center max-w-3xl mx-auto">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-pill bg-pure-white border border-faint-border shadow-shop-sm mb-6">
-                <span className="w-2 h-2 rounded-full bg-shop-violet animate-pulse"></span>
-                <span className="text-[12px] font-medium text-ink-black tracking-tight">
-                  大淀川・本庄川・清武川 想定最大浸水深（L2）
+            <section className="mb-14 text-center max-w-3xl mx-auto">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-pill bg-pure-white border border-faint-border shadow-shop-sm mb-5">
+                <span className={`w-2 h-2 rounded-full ${themeBgClass} animate-pulse`}></span>
+                <span className="text-[12px] font-semibold text-ink-black tracking-tight">
+                  {isTsunami 
+                    ? '南海トラフ巨大地震 津波浸水想定・避難タワー判定' 
+                    : '大淀川・本庄川・清武川 想定最大規模浸水深（L2）'}
                 </span>
               </div>
 
-              <h1 className="text-[38px] sm:text-[54px] font-bold text-ink-black leading-[1.08] tracking-[-0.04em] mb-4">
-                足元の水深が、<br className="sm:hidden" />
-                <span className="text-shop-violet">瞬時に</span> Miえる。
+              <h1 className="text-[34px] sm:text-[50px] font-bold text-ink-black leading-[1.12] tracking-[-0.04em] mb-4">
+                {isTsunami ? '足元の津波到達が、' : '足元の水深が、'}<br className="sm:hidden" />
+                <span className={themeColorClass}>瞬時に</span> Miえる。
               </h1>
-              <p className="text-[15px] sm:text-[16px] text-muted-gray leading-relaxed max-w-xl mx-auto font-normal mb-8">
-                宮崎平野の住まいや職場の住所を入力するだけで、国土地理院L2浸水深、親子の安全限界、最寄り指定避難所への徒歩経路を即座に査定します。
+              <p className="text-[14px] sm:text-[16px] text-muted-gray leading-relaxed max-w-xl mx-auto font-normal mb-7">
+                {isTsunami
+                  ? '宮崎沿岸〜市街地の住所や現在地から、想定される津波浸水深・第1波到達時間・近隣の津波避難ビル・タワーへの退避路を即時に査定します。'
+                  : '宮崎平野の住まいや職場の住所を入力するだけで、国土地理院L2浸水深、親子の安全限界、最寄り指定避難所への徒歩経路を即座に査定します。'}
               </p>
 
-              {/* Shop Signature Pill Search Bar (9999px radius, circular violet submit button) */}
+              {/* Signature Search Bar */}
               <div className="relative max-w-2xl mx-auto">
                 <form 
-                  onSubmit={(e) => { e.preventDefault(); runAssessment(inputQuery); }}
-                  className="relative flex items-center bg-pure-white rounded-pill border border-ink-black/10 shadow-shop-soft pl-5 pr-2 py-1.5 focus-within:border-shop-violet transition"
+                  onSubmit={(e) => { e.preventDefault(); runAssessment(inputQuery, hazardMode); }}
+                  className={`relative flex items-center bg-pure-white rounded-pill border border-ink-black/10 shadow-shop-soft pl-5 pr-2 py-1.5 focus-within:border-2 ${isTsunami ? 'focus-within:border-shop-ocean' : 'focus-within:border-shop-violet'} transition`}
                 >
                   <span className="text-muted-gray text-base mr-2">🔍</span>
                   <input
                     type="text"
                     value={inputQuery}
                     onChange={(e) => setInputQuery(e.target.value)}
-                    placeholder="宮崎市内の住所やランドマーク（例: 橘通西1-1-1, 大淀4丁目, 清武町船引）"
-                    className="flex-1 h-12 bg-transparent text-[15px] text-ink-black placeholder:text-muted-gray focus:outline-none font-normal"
+                    placeholder="宮崎市内の住所やランドマーク（例: 橘通西, 青島2丁目, 港1丁目, 大淀）"
+                    className="flex-1 h-12 bg-transparent text-[14px] sm:text-[15px] text-ink-black placeholder:text-muted-gray focus:outline-none font-normal"
                   />
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={handleGPS}
-                      className="h-9 px-3.5 rounded-pill text-[13px] text-muted-gray hover:text-ink-black hover:bg-canvas-mist transition font-medium cursor-pointer whitespace-nowrap"
+                      className="h-9 px-3.5 rounded-pill text-[12px] text-muted-gray hover:text-ink-black hover:bg-canvas-mist transition font-medium cursor-pointer whitespace-nowrap"
                     >
                       現在地
                     </button>
                     <button
                       type="submit"
                       disabled={isLoading}
-                      className="w-12 h-12 rounded-full bg-shop-violet text-pure-white flex items-center justify-center hover:opacity-95 transition shadow-shop-violet disabled:opacity-50 cursor-pointer flex-shrink-0"
+                      className={`w-12 h-12 rounded-full ${themeBgClass} text-pure-white flex items-center justify-center hover:opacity-95 transition ${themeShadowClass} disabled:opacity-50 cursor-pointer flex-shrink-0`}
                       title="査定する"
                     >
                       {isLoading ? (
@@ -625,15 +834,15 @@
                   </div>
                 </form>
 
-                {/* Category Pill Chips Row (9999px radius, 1px faint border, subtle elevation) */}
-                <div className="mt-5 flex flex-wrap justify-center gap-2 items-center">
-                  <span className="text-[12px] text-muted-gray font-medium mr-1">代表地点:</span>
-                  {SAMPLE_LOCATIONS.slice(0, 6).map(s => (
+                {/* 代表地点クイックチップス */}
+                <div className="mt-4 flex flex-wrap justify-center gap-1.5 items-center">
+                  <span className="text-[11px] text-muted-gray font-medium mr-1">代表地点:</span>
+                  {SAMPLE_LOCATIONS.slice(0, 7).map(s => (
                     <button
                       key={s.name}
                       type="button"
-                      onClick={() => runAssessment(s.address)}
-                      className="text-[12px] px-3.5 py-1.5 rounded-pill bg-pure-white text-ink-black hover:bg-faint-border border border-faint-border shadow-shop-sm transition font-medium cursor-pointer"
+                      onClick={() => runAssessment(s.address, hazardMode)}
+                      className="text-[11px] px-3 py-1 rounded-pill bg-pure-white text-ink-black hover:bg-faint-border border border-faint-border shadow-shop-sm transition font-medium cursor-pointer"
                     >
                       {s.name}
                     </button>
@@ -641,27 +850,29 @@
                 </div>
 
                 {searchError && (
-                  <div className="mt-4 p-4 rounded-inner bg-pure-white border border-shop-violet/30 text-ink-black text-[13px] shadow-shop-sm">
+                  <div className={`mt-4 p-4 rounded-inner bg-pure-white border ${themeBorderClass} text-ink-black text-[13px] shadow-shop-sm`}>
                     {searchError}
                   </div>
                 )}
               </div>
             </section>
 
-            {/* Primary Assessment Card (Floating Brand Spotlight Card, 28px radius, soft dual shadow) */}
             {hazardResult && (
-              <section className="mb-16">
-                <div className="bg-pure-white rounded-card shadow-shop-card border border-faint-border p-7 sm:p-9 text-left">
+              <section className="mb-14">
+                <div className="bg-pure-white rounded-card shadow-shop-card border border-faint-border p-6 sm:p-9 text-left">
                   
                   {/* Top Metadata Header */}
                   <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 pb-6 border-b border-faint-border">
                     <div>
-                      <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <span className="text-[11px] uppercase tracking-wider text-muted-gray font-semibold">
                           ASSESSMENT RECORD · {hazardResult.timestamp}
                         </span>
+                        <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-pill ${isTsunami ? 'bg-ocean-wash/40 text-shop-ocean' : 'bg-violet-wash/40 text-shop-violet'} border border-current`}>
+                          {isTsunami ? '🌊 津波査定モード' : '🌧 洪水査定モード'}
+                        </span>
                         {hazardResult.isInundationZone ? (
-                          <span className="text-[11px] font-semibold px-3 py-0.5 rounded-pill bg-shop-violet text-pure-white shadow-shop-violet">
+                          <span className={`text-[11px] font-semibold px-3 py-0.5 rounded-pill ${themeBgClass} text-pure-white ${themeShadowClass}`}>
                             浸水想定区域内
                           </span>
                         ) : (
@@ -673,18 +884,26 @@
                       <h2 className="text-2xl sm:text-3xl font-bold text-ink-black tracking-tight">
                         {hazardResult.address}
                       </h2>
-                      <p className="text-[14px] text-muted-gray mt-1.5">
-                        推定地盤標高: {hazardResult.elevationMeters !== null ? `${hazardResult.elevationMeters}m` : '測定中'} · 浸水継続時間想定: {hazardResult.riskLevel === 'none' ? '0時間' : '12〜48時間程度'}
+                      <p className="text-[13px] sm:text-[14px] text-muted-gray mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
+                        <span>推定地盤標高: <strong>{hazardResult.elevationMeters !== null ? `${hazardResult.elevationMeters}m` : '測定中'}</strong></span>
+                        {isTsunami ? (
+                          <>
+                            <span>海岸推定距離: <strong>約 {hazardResult.estimatedDistToCoastKm} km</strong></span>
+                            <span>津波到達目安: <strong>{hazardResult.tsunamiArrivalEst}</strong></span>
+                          </>
+                        ) : (
+                          <span>浸水継続時間想定: <strong>{hazardResult.riskLevel === 'none' ? '0時間' : '12〜48時間程度'}</strong></span>
+                        )}
                       </p>
                     </div>
 
-                    {/* Stat Fragment Pill Card */}
-                    <div className="bg-canvas-mist p-5 rounded-inner border border-faint-border min-w-[240px] text-left">
+                    {/* Stat Crest Pill Card */}
+                    <div className="bg-canvas-mist p-5 rounded-inner border border-faint-border min-w-[260px] text-left">
                       <span className="text-[11px] uppercase tracking-wider text-muted-gray font-semibold block mb-1">
-                        PROJECTED WATER CREST
+                        {isTsunami ? 'PROJECTED TSUNAMI CREST' : 'PROJECTED WATER CREST'}
                       </span>
                       <div className="flex items-baseline gap-2">
-                        <span className="text-3xl sm:text-4xl font-bold text-shop-violet tracking-tight">
+                        <span className={`text-3xl sm:text-4xl font-bold ${themeColorClass} tracking-tight`}>
                           {hazardResult.depthRangeText}
                         </span>
                       </div>
@@ -698,23 +917,25 @@
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-6">
                     
                     <div className="p-5 rounded-inner bg-canvas-mist border border-faint-border">
-                      <span className="text-[11px] text-muted-gray font-semibold uppercase tracking-wider block mb-1">01 / HUMAN SAFETY</span>
-                      <h3 className="text-base font-bold text-ink-black mb-1.5">人体・歩行への影響</h3>
+                      <span className="text-[11px] text-muted-gray font-semibold uppercase tracking-wider block mb-1">01 / HUMAN IMPACT</span>
+                      <h3 className="text-base font-bold text-ink-black mb-1.5">人体・避難歩行への影響</h3>
                       <p className="text-[13px] text-muted-gray leading-relaxed">{hazardResult.humanImpact}</p>
                     </div>
 
                     <div className="p-5 rounded-inner bg-canvas-mist border border-faint-border">
-                      <span className="text-[11px] text-muted-gray font-semibold uppercase tracking-wider block mb-1">02 / INFRASTRUCTURE</span>
-                      <h3 className="text-base font-bold text-ink-black mb-1.5">家屋・生活環境への影響</h3>
+                      <span className="text-[11px] text-muted-gray font-semibold uppercase tracking-wider block mb-1">02 / STRUCTURAL THREAT</span>
+                      <h3 className="text-base font-bold text-ink-black mb-1.5">建物・都市施設への破壊影響</h3>
                       <p className="text-[13px] text-muted-gray leading-relaxed">{hazardResult.buildingImpact}</p>
                     </div>
 
-                    <div className="p-5 rounded-inner bg-pure-white border-2 border-shop-violet shadow-shop-soft">
+                    <div className={`p-5 rounded-inner bg-pure-white border-2 ${themeBorderClass} shadow-shop-soft`}>
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-[11px] uppercase tracking-wider text-shop-violet font-semibold">03 / ACTION PROTOCOL</span>
-                        <span className="w-2 h-2 rounded-full bg-shop-violet"></span>
+                        <span className={`text-[11px] uppercase tracking-wider ${themeColorClass} font-semibold`}>03 / MANDATORY ACTION</span>
+                        <span className={`w-2 h-2 rounded-full ${themeBgClass}`}></span>
                       </div>
-                      <h3 className="text-base font-bold text-ink-black mb-1.5">推奨避難行動</h3>
+                      <h3 className="text-base font-bold text-ink-black mb-1.5">
+                        {isTsunami ? '津波即時退避プロトコル' : '推奨避難行動'}
+                      </h3>
                       <p className="text-[13px] text-ink-black leading-relaxed font-medium">{hazardResult.evacuationAction}</p>
                     </div>
 
@@ -723,15 +944,14 @@
               </section>
             )}
 
-            {/* Geometric Simulation Cross-Section Card (Pillow soft, 28px radius, Shop Violet Water Band) */}
             {hazardResult && (
-              <section className="mb-16">
-                <div className="bg-pure-white rounded-card shadow-shop-card border border-faint-border p-7 sm:p-9 text-left">
+              <section className="mb-14">
+                <div className="bg-pure-white rounded-card shadow-shop-card border border-faint-border p-6 sm:p-9 text-left">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-6 pb-4 border-b border-faint-border">
                     <div>
                       <span className="text-[11px] uppercase tracking-wider text-muted-gray font-semibold block">GEOMETRIC SCALE MODEL</span>
                       <h3 className="text-xl sm:text-2xl font-bold text-ink-black tracking-tight">
-                        浸水断面スケールモデル（同一地盤・統一縮尺）
+                        {isTsunami ? '津波断面スケールモデル（同一地盤・波力比較）' : '浸水断面スケールモデル（同一地盤・統一縮尺）'}
                       </h3>
                     </div>
                     <div className="text-[12px] font-medium text-muted-gray bg-canvas-mist px-4 py-1.5 rounded-pill border border-faint-border">
@@ -739,12 +959,12 @@
                     </div>
                   </div>
 
-                  {/* SVG Canvas in 20px Inner Pill Container */}
+                  {/* SVG Canvas */}
                   <div className="bg-canvas-mist rounded-inner p-6 overflow-x-auto border border-faint-border">
                     <svg viewBox="0 0 680 230" className="w-full min-w-[580px] h-[230px] overflow-visible">
                       
                       {/* Grid guidelines */}
-                      <line x1="20" y1={GL_Y - 0.5 * 24} x2="630" y2={GL_Y - 0.5 * 24} stroke="#ebebeb" strokeWidth="1" strokeDasharray="3,3" />
+                      <line x1="20" y1={GL_Y - 0.3 * 24} x2="630" y2={GL_Y - 0.3 * 24} stroke="#ebebeb" strokeWidth="1" strokeDasharray="3,3" />
                       <line x1="20" y1={GL_Y - 1.0 * 24} x2="630" y2={GL_Y - 1.0 * 24} stroke="#ebebeb" strokeWidth="1" strokeDasharray="3,3" />
                       <line x1="20" y1={GL_Y - 3.0 * 24} x2="630" y2={GL_Y - 3.0 * 24} stroke="#ebebeb" strokeWidth="1" strokeDasharray="3,3" />
                       <line x1="20" y1={GL_Y - 5.0 * 24} x2="630" y2={GL_Y - 5.0 * 24} stroke="#ebebeb" strokeWidth="1" strokeDasharray="3,3" />
@@ -762,12 +982,12 @@
                         <rect x="155" y="155" width="30" height="50" fill="#f2f4f5" stroke="#000000" strokeWidth="1.2" rx="4" />
                         <circle cx="180" cy="180" r="1.5" fill="#000000" />
                         <text x="120" y="174" textAnchor="middle" fontSize="11" fill="#787574" fontFamily="Inter" fontWeight="500">1F 居室</text>
-                        <text x="170" y={GL_Y + 16} textAnchor="middle" fontSize="10" fill="#000000" fontFamily="Inter" fontWeight="600">2階建住宅 (7.0m)</text>
+                        <text x="170" y={GL_Y + 16} textAnchor="middle" fontSize="10" fill="#000000" fontFamily="Inter" fontWeight="600">2階建木造住宅 (7.0m)</text>
                       </g>
 
                       {/* --- Family Pictogram (Standing on GL y=205, strict ratio 1m=24px) --- */}
                       <g id="family-unified">
-                        {/* Adult (1.70m = 40.8px / y=164.2 〜 205) */}
+                        {/* Adult (1.70m = 40.8px) */}
                         <circle cx="345" cy="168" r="4.2" fill="#000000" />
                         <path d="M 339 174 C 339 172.5, 351 172.5, 351 174 L 350 188 L 340 188 Z" fill="#000000" />
                         <path d="M 339 175 L 335 184" stroke="#000000" strokeWidth="2.2" strokeLinecap="round" />
@@ -776,7 +996,7 @@
                         <line x1="348" y1="188" x2="348" y2={GL_Y} stroke="#000000" strokeWidth="2.6" strokeLinecap="round" />
                         <text x="345" y={GL_Y + 16} textAnchor="middle" fontSize="10" fill="#000000" fontFamily="Inter" fontWeight="600">大人 1.7m</text>
 
-                        {/* Child (1.05m = 25.2px / y=179.8 〜 205) */}
+                        {/* Child (1.05m = 25.2px) */}
                         <circle cx="372" cy="183" r="3.2" fill="#000000" />
                         <path d="M 368 187 C 368 186, 376 186, 376 187 L 375 195 L 369 195 Z" fill="#000000" />
                         <path d="M 368 188 L 366 188" stroke="#000000" strokeWidth="1.8" strokeLinecap="round" />
@@ -790,26 +1010,26 @@
                       <g id="scale-ruler" transform="translate(435, 0)">
                         <line x1="0" y1="37" x2="0" y2={GL_Y} stroke="#000000" strokeWidth="1.5" />
                         
-                        <line x1="0" y1={GL_Y - 12} x2="10" y2={GL_Y - 12} stroke="#000000" strokeWidth="1" />
-                        <text x="14" y={GL_Y - 9} fontSize="10" fill="#787574" fontFamily="Inter">0.5m (膝下 / 幼児腰高)</text>
-                        
+                        <line x1="0" y1={GL_Y - 7.2} x2="10" y2={GL_Y - 7.2} stroke="#e03131" strokeWidth="1.2" />
+                        <text x="14" y={GL_Y - 5} fontSize="9" fill="#e03131" fontFamily="Inter" fontWeight="600">0.3m (津波致死限界 / 歩行不能)</text>
+
                         <line x1="0" y1={GL_Y - 24} x2="8" y2={GL_Y - 24} stroke="#000000" strokeWidth="1" />
-                        <text x="14" y={GL_Y - 21} fontSize="10" fill="#787574" fontFamily="Inter">1.0m (児童胸高 / 床上浸水)</text>
+                        <text x="14" y={GL_Y - 21} fontSize="10" fill="#787574" fontFamily="Inter">1.0m (児童胸高 / 木造一部損壊)</text>
 
                         <line x1="0" y1={GL_Y - 40.8} x2="6" y2={GL_Y - 40.8} stroke="#787574" strokeWidth="1" strokeDasharray="2,2" />
                         <text x="14" y={GL_Y - 38} fontSize="9" fill="#787574" fontFamily="Inter">1.7m (大人身長)</text>
 
                         <line x1="0" y1={GL_Y - 72} x2="10" y2={GL_Y - 72} stroke="#000000" strokeWidth="1" />
-                        <text x="14" y={GL_Y - 69} fontSize="10" fill="#787574" fontFamily="Inter">3.0m (2階床面 / 1階水没)</text>
+                        <text x="14" y={GL_Y - 69} fontSize="10" fill="#787574" fontFamily="Inter">3.0m (2階床面 / 木造全面流失域)</text>
 
                         <line x1="0" y1={GL_Y - 120} x2="10" y2={GL_Y - 120} stroke="#000000" strokeWidth="1" />
                         <text x="14" y={GL_Y - 117} fontSize="10" fill="#787574" fontFamily="Inter">5.0m (2階居室水没)</text>
 
                         <line x1="0" y1={GL_Y - 168} x2="10" y2={GL_Y - 168} stroke="#000000" strokeWidth="1" />
-                        <text x="14" y={GL_Y - 165} fontSize="10" fill="#787574" fontFamily="Inter">7.0m (家屋水没ライン)</text>
+                        <text x="14" y={GL_Y - 165} fontSize="10" fill="#787574" fontFamily="Inter">7.0m (家屋全没ライン)</text>
                       </g>
 
-                      {/* --- Water Overlay (Shop Violet & Translucent Wash) --- */}
+                      {/* --- Water Overlay (Shop Violet or Ocean Blue) --- */}
                       {hazardResult.isInundationZone && maxWaterDepth > 0 && (
                         <g id="unified-water-layer">
                           {minWaterHeightPx > 0 && (
@@ -818,7 +1038,7 @@
                               y={minWaterTopY} 
                               width="630" 
                               height={minWaterHeightPx} 
-                              fill="#c0b5f3" 
+                              fill={isTsunami ? '#b8dbfd' : '#c0b5f3'} 
                               fillOpacity="0.75"
                             />
                           )}
@@ -828,19 +1048,17 @@
                             y={maxWaterTopY} 
                             width="630" 
                             height={rangeBandHeightPx > 0 ? rangeBandHeightPx : maxWaterHeightPx} 
-                            fill="#c0b5f3" 
+                            fill={isTsunami ? '#b8dbfd' : '#c0b5f3'} 
                             fillOpacity="0.45"
                           />
 
-                          {minWaterDepth > 0 && (
-                            <line 
-                              x1="20" 
-                              y1={minWaterTopY} 
-                              x2="630" 
-                              y2={minWaterTopY} 
-                              stroke="#5433eb" 
-                              strokeWidth="1.2" 
-                              strokeDasharray="4,3"
+                          {/* 津波モード時の波浪頭装飾 */}
+                          {isTsunami && (
+                            <path 
+                              d={`M 20 ${maxWaterTopY} Q 50 ${maxWaterTopY - 4}, 80 ${maxWaterTopY} T 140 ${maxWaterTopY} T 200 ${maxWaterTopY} T 260 ${maxWaterTopY} T 320 ${maxWaterTopY} T 380 ${maxWaterTopY} T 440 ${maxWaterTopY} T 500 ${maxWaterTopY} T 560 ${maxWaterTopY} T 620 ${maxWaterTopY} L 650 ${maxWaterTopY}`} 
+                              stroke="#0c66e4" 
+                              strokeWidth="2.5" 
+                              fill="none"
                             />
                           )}
 
@@ -849,15 +1067,15 @@
                             y1={maxWaterTopY} 
                             x2="630" 
                             y2={maxWaterTopY} 
-                            stroke="#5433eb" 
-                            strokeWidth="2.5" 
+                            stroke={isTsunami ? '#0c66e4' : '#5433eb'} 
+                            strokeWidth={isTsunami ? '1' : '2.5'} 
                           />
 
-                          {/* Shop Violet Water Crest Badge */}
+                          {/* Crest Badge */}
                           <g transform={`translate(260, ${Math.min(GL_Y - 26, Math.max(12, maxWaterTopY - 24))})`}>
-                            <rect x="0" y="0" width="195" height="24" rx="12" fill="#5433eb" />
-                            <text x="97" y="16" textAnchor="middle" fontSize="11" fill="#ffffff" fontFamily="Inter" fontWeight="600">
-                              最悪到達想定: 最大 {hazardResult.maxDepthMeters}m ライン
+                            <rect x="0" y="0" width="205" height="24" rx="12" fill={isTsunami ? '#0c66e4' : '#5433eb'} />
+                            <text x="102" y="16" textAnchor="middle" fontSize="11" fill="#ffffff" fontFamily="Inter" fontWeight="600">
+                              {isTsunami ? '津波最悪到達: ' : '洪水最悪到達: '}最大 {hazardResult.maxDepthMeters}m
                             </text>
                           </g>
 
@@ -866,8 +1084,8 @@
                               x="35" 
                               y={maxWaterTopY + rangeBandHeightPx / 2 + 4} 
                               fontSize="10" 
-                              fill="#5433eb" 
-                              fontFamily="Inter"
+                              fill={isTsunami ? '#0c66e4' : '#5433eb'} 
+                              fontFamily="Inter" 
                               fontWeight="600"
                             >
                               ↕ 想定幅: {hazardResult.depthRangeText}
@@ -879,21 +1097,30 @@
                     </svg>
 
                     <div className="mt-4 pt-3 border-t border-faint-border flex flex-col sm:flex-row items-start sm:items-center justify-between text-[11px] text-muted-gray font-medium">
-                      <span>※ 紫色の実線は当該地点の<strong>「最大到達予想水位（最悪上限値）」</strong>を示します。淡いバイオレットの帯はハザードマップが指定する<strong>想定浸水深の幅（{hazardResult ? hazardResult.depthRangeText : ''}）</strong>です。</span>
-                      <span className="text-shop-violet font-semibold mt-1 sm:mt-0">WORST-CASE LEVEL BENCHMARK</span>
+                      <span>
+                        ※ 実線は当該地点の<strong>「最大到達予想水深」</strong>を示します。{isTsunami ? '津波は水深0.3mで流速が加わり、人体が流出する致死危険領域に突入します。' : '淡色の帯はハザードマップが指定する想定浸水深の幅を示します。'}
+                      </span>
+                      <span className={`${themeColorClass} font-semibold mt-1 sm:mt-0 uppercase`}>
+                        {isTsunami ? 'TSUNAMI HYDRODYNAMIC BENCHMARK' : 'FLOOD CREST BENCHMARK'}
+                      </span>
                     </div>
                   </div>
                 </div>
               </section>
             )}
 
-            {/* GIS Map Viewer (Shop Floating Product Card, 28px radius) */}
-            <section className="mb-16">
+            {/* GIS Map Viewer */}
+            <section className="mb-14">
               <div className="bg-pure-white rounded-card shadow-shop-card border border-faint-border p-6 text-left">
-                <div className="flex justify-between items-center mb-4 px-2">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4 px-2">
                   <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-shop-violet shadow-shop-violet"></span>
-                    <span className="text-base font-bold text-ink-black">インタラクティブGISハザードマップ</span>
+                    <span className={`w-2.5 h-2.5 rounded-full ${themeBgClass} ${themeShadowClass}`}></span>
+                    <span className="text-base font-bold text-ink-black">
+                      {isTsunami ? '南海トラフ津波浸水想定 GISマップ' : '大淀川水系 洪水浸水想定 GISマップ'}
+                    </span>
+                    <span className="text-[11px] bg-canvas-mist px-2.5 py-0.5 rounded-pill border border-faint-border font-medium">
+                      {isTsunami ? '津波タイル接続中' : '洪水L2タイル接続中'}
+                    </span>
                   </div>
                   <span className="text-[12px] text-muted-gray">
                     地図をクリックして任意の地点を再査定
@@ -901,22 +1128,24 @@
                 </div>
                 <div 
                   ref={mapContainerRef} 
-                  className="w-full h-[450px] rounded-inner border border-faint-border z-0 overflow-hidden"
+                  className="w-full h-[460px] rounded-inner border border-faint-border z-0 overflow-hidden"
                 />
               </div>
             </section>
 
-            {/* Nearest Shelters (Shop Product Spotlight Cards, 28px radius, Pillow buttons) */}
-            <section className="mb-16 text-left">
-              <div className="flex justify-between items-end mb-6">
+            {/* Nearest Shelters */}
+            <section className="mb-14 text-left">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2 mb-6">
                 <div>
-                  <span className="text-[11px] uppercase tracking-wider text-muted-gray font-semibold block">EMERGENCY ROUTING</span>
+                  <span className="text-[11px] uppercase tracking-wider text-muted-gray font-semibold block">
+                    {isTsunami ? 'TSUNAMI EVACUATION NETWORK' : 'EMERGENCY ROUTING'}
+                  </span>
                   <h3 className="text-2xl font-bold text-ink-black tracking-tight">
-                    周辺の指定緊急避難場所（洪水対応）
+                    {isTsunami ? '周辺の津波避難ビル・津波避難タワー・高台拠点' : '周辺の指定緊急避難場所（洪水対応）'}
                   </h3>
                 </div>
                 <span className="text-[12px] text-muted-gray">
-                  直線距離の近い順に表示
+                  現在査定地からの直線距離順
                 </span>
               </div>
 
@@ -928,11 +1157,16 @@
                   >
                     <div>
                       <div className="flex justify-between items-start gap-2 mb-2">
-                        <span className="text-lg font-bold text-ink-black leading-snug">
-                          {idx + 1}. {s.name}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${s.isTsunamiTower ? 'bg-shop-ocean text-white' : 'bg-canvas-mist text-ink-black'}`}>
+                            {idx + 1}
+                          </span>
+                          <span className="text-base sm:text-lg font-bold text-ink-black leading-snug">
+                            {s.name}
+                          </span>
+                        </div>
                         <span className="text-[11px] font-semibold bg-canvas-mist px-3 py-1 rounded-pill text-muted-gray whitespace-nowrap border border-faint-border">
-                          標高 {s.elevation}m
+                          海抜 {s.elevation}m
                         </span>
                       </div>
                       <p className="text-[13px] text-muted-gray mb-3">{s.address} · {s.structure}</p>
@@ -947,6 +1181,15 @@
                           <span className="text-[11px] text-muted-gray block mb-0.5 font-medium">徒歩所要時間</span>
                           <span className="text-ink-black font-semibold">約 {s.walkingMinutes} 分</span>
                         </div>
+                        {s.isTsunamiTower && (
+                          <>
+                            <div className="h-6 w-[1px] bg-faint-border"></div>
+                            <div>
+                              <span className="text-[10px] text-shop-ocean block mb-0.5 font-bold uppercase">施設種別</span>
+                              <span className="text-shop-ocean font-bold text-xs">避難タワー</span>
+                            </div>
+                          </>
+                        )}
                       </div>
 
                       {s.notes && (
@@ -967,7 +1210,7 @@
                         href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(currentAddress)}&destination=${encodeURIComponent(s.name + ' ' + s.address)}&travelmode=walking`} 
                         target="_blank" 
                         rel="noreferrer" 
-                        className="h-9 px-4 rounded-pill bg-pure-white border border-ink-black/20 text-ink-black hover:border-shop-violet hover:text-shop-violet transition flex items-center gap-1.5 cursor-pointer text-[12px] font-medium shadow-shop-sm"
+                        className={`h-9 px-4 rounded-pill bg-pure-white border border-ink-black/20 text-ink-black hover:${themeBorderClass} hover:${themeColorClass} transition flex items-center gap-1.5 cursor-pointer text-[12px] font-medium shadow-shop-sm`}
                       >
                         <span>徒歩ルート案内</span>
                         <span>→</span>
@@ -978,17 +1221,17 @@
               </div>
             </section>
 
-            {/* Preparedness / Checklist / River Intelligence (Shop Pure White Card with Pill Tabs) */}
-            <section className="mb-16 text-left">
-              <div className="bg-pure-white rounded-card shadow-shop-card border border-faint-border p-7 sm:p-9">
+            {/* Preparedness / Checklist / Tsunami & River Intelligence */}
+            <section className="mb-14 text-left">
+              <div className="bg-pure-white rounded-card shadow-shop-card border border-faint-border p-6 sm:p-9">
                 
                 {/* Pill Tab Strip */}
                 <div className="flex flex-wrap gap-2 mb-6 border-b border-faint-border pb-5">
                   <button 
                     onClick={() => setPrepTab('checklist')}
-                    className={`h-9 px-4 rounded-pill text-[13px] font-medium transition cursor-pointer ${
+                    className={`h-9 px-4 rounded-pill text-[12px] font-semibold transition cursor-pointer ${
                       prepTab === 'checklist' 
-                        ? 'bg-shop-violet text-pure-white shadow-shop-violet' 
+                        ? `${themeBgClass} text-pure-white ${themeShadowClass}` 
                         : 'bg-canvas-mist text-muted-gray hover:text-ink-black border border-faint-border'
                     }`}
                   >
@@ -996,23 +1239,23 @@
                   </button>
                   <button 
                     onClick={() => setPrepTab('levels')}
-                    className={`h-9 px-4 rounded-pill text-[13px] font-medium transition cursor-pointer ${
+                    className={`h-9 px-4 rounded-pill text-[12px] font-semibold transition cursor-pointer ${
                       prepTab === 'levels' 
-                        ? 'bg-shop-violet text-pure-white shadow-shop-violet' 
+                        ? `${themeBgClass} text-pure-white ${themeShadowClass}` 
                         : 'bg-canvas-mist text-muted-gray hover:text-ink-black border border-faint-border'
                     }`}
                   >
-                    警戒レベルの定義
+                    {isTsunami ? '津波警報・注意報の基準' : '洪水警戒レベルの定義'}
                   </button>
                   <button 
                     onClick={() => setPrepTab('rivers')}
-                    className={`h-9 px-4 rounded-pill text-[13px] font-medium transition cursor-pointer ${
+                    className={`h-9 px-4 rounded-pill text-[12px] font-semibold transition cursor-pointer ${
                       prepTab === 'rivers' 
-                        ? 'bg-shop-violet text-pure-white shadow-shop-violet' 
+                        ? `${themeBgClass} text-pure-white ${themeShadowClass}` 
                         : 'bg-canvas-mist text-muted-gray hover:text-ink-black border border-faint-border'
                     }`}
                   >
-                    主要河川インテリジェンス
+                    {isTsunami ? '宮崎沿岸の津波インテリジェンス' : '主要河川インテリジェンス'}
                   </button>
                 </div>
 
@@ -1020,7 +1263,7 @@
                 {prepTab === 'checklist' && (
                   <div>
                     <div className="flex justify-between items-center mb-4">
-                      <span className="text-[11px] uppercase tracking-wider text-muted-gray font-semibold">ESSENTIAL READINESS</span>
+                      <span className="text-[11px] uppercase tracking-wider text-muted-gray font-semibold">ESSENTIAL READINESS CHECK</span>
                       <span className="text-[12px] text-muted-gray">
                         ローカルブラウザに自動保存
                       </span>
@@ -1036,7 +1279,7 @@
                             className={`p-3.5 rounded-inner border text-left flex justify-between items-center transition cursor-pointer ${
                               checked 
                                 ? 'bg-canvas-mist border-transparent text-muted-gray line-through' 
-                                : 'bg-pure-white border-faint-border text-ink-black hover:border-shop-violet/40 shadow-shop-sm'
+                                : `bg-pure-white border-faint-border text-ink-black hover:${themeBorderClass} shadow-shop-sm`
                             }`}
                           >
                             <span className="text-[14px] font-medium">{checked ? '✓' : '○'} {item.label}</span>
@@ -1050,99 +1293,155 @@
                   </div>
                 )}
 
-                {/* Warning Levels View */}
+                {/* Warning Levels / Alert Definitions */}
                 {prepTab === 'levels' && (
                   <div className="space-y-3 text-left">
-                    <div className="p-5 rounded-inner bg-canvas-mist border border-faint-border">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-[11px] text-muted-gray uppercase tracking-wider font-semibold">LEVEL 05 / EMERGENCY PROTOCOL</span>
-                        <span className="w-2 h-2 rounded-full bg-ink-black"></span>
-                      </div>
-                      <h4 className="text-base font-bold text-ink-black">警戒レベル5: 緊急安全確保</h4>
-                      <p className="text-[13px] text-muted-gray mt-1 leading-relaxed">
-                        すでに氾濫が発生、または切迫しています。命を守る最善の行動を直ちに実行。上階への垂直避難または近隣のより安全な高台へ退避。
-                      </p>
-                    </div>
+                    {isTsunami ? (
+                      <>
+                        <div className="p-5 rounded-inner bg-pure-white border-2 border-tsunami-red shadow-shop-soft">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[11px] uppercase tracking-wider text-tsunami-red font-bold">ALERT LEVEL 01 / CATASTROPHIC</span>
+                            <span className="w-2.5 h-2.5 rounded-full bg-tsunami-red animate-ping"></span>
+                          </div>
+                          <h4 className="text-base font-bold text-tsunami-red">大津波警報（予想波高: 3m超〜10m超以上）</h4>
+                          <p className="text-[13px] text-ink-black mt-1 leading-relaxed font-medium">
+                            木造家屋は全面破壊・流失します。沿岸部や河口付近にいる人は直ちに海から離れ、標高15m以上の高台、または指定津波避難ビル（3階以上）へ退避してください。宮崎沿岸には最短16〜20分で第1波が到達します。
+                          </p>
+                        </div>
 
-                    <div className="p-5 rounded-inner bg-pure-white border-2 border-shop-violet shadow-shop-soft">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-[11px] uppercase tracking-wider text-shop-violet font-semibold">LEVEL 04 / MANDATORY EVACUATION</span>
-                        <span className="w-2 h-2 rounded-full bg-shop-violet shadow-shop-violet"></span>
-                      </div>
-                      <h4 className="text-base font-bold text-shop-violet">警戒レベル4: 避難指示 (全員避難)</h4>
-                      <p className="text-[13px] leading-relaxed mt-1 text-ink-black font-medium">
-                        危険な場所にいる方は全員、指定緊急避難場所や安全な高台・ホテル等へ立ち退き避難を完了してください。
-                      </p>
-                    </div>
+                        <div className="p-5 rounded-inner bg-canvas-mist border border-faint-border">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[11px] text-muted-gray uppercase tracking-wider font-semibold">ALERT LEVEL 02 / HIGH RISK</span>
+                          </div>
+                          <h4 className="text-base font-bold text-ink-black">津波警報（予想波高: 1m超〜3m）</h4>
+                          <p className="text-[13px] text-muted-gray mt-1 leading-relaxed">
+                            標高の低い平野部や砂浜へ押し寄せます。水深1mの津波は致死率100%に達します。海岸に絶対に近づかず、速やかに高台へ避難。
+                          </p>
+                        </div>
 
-                    <div className="p-5 rounded-inner bg-canvas-mist border border-faint-border">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-[11px] text-muted-gray uppercase tracking-wider font-semibold">LEVEL 03 / PRE-EVACUATION</span>
-                      </div>
-                      <h4 className="text-base font-bold text-ink-black">警戒レベル3: 高齢者等避難</h4>
-                      <p className="text-[13px] text-muted-gray mt-1 leading-relaxed">
-                        避難に時間を要する方（高齢者、障がい者、乳幼児連れ等）は速やかに避難を開始。一般の方も非常持ち出し品の確認を完了。
-                      </p>
-                    </div>
+                        <div className="p-5 rounded-inner bg-canvas-mist border border-faint-border">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[11px] text-muted-gray uppercase tracking-wider font-semibold">ALERT LEVEL 03 / ADVISORY</span>
+                          </div>
+                          <h4 className="text-base font-bold text-ink-black">津波注意報（予想波高: 0.2m〜1m）</h4>
+                          <p className="text-[13px] text-muted-gray mt-1 leading-relaxed">
+                            海の中での作業やマリンスポーツは直ちに中止し、海岸から離れてください。潮の流れが急激に変化します。
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="p-5 rounded-inner bg-canvas-mist border border-faint-border">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[11px] text-muted-gray uppercase tracking-wider font-semibold">LEVEL 05 / EMERGENCY PROTOCOL</span>
+                            <span className="w-2 h-2 rounded-full bg-ink-black"></span>
+                          </div>
+                          <h4 className="text-base font-bold text-ink-black">警戒レベル5: 緊急安全確保</h4>
+                          <p className="text-[13px] text-muted-gray mt-1 leading-relaxed">
+                            すでに氾濫が発生、または切迫しています。命を守る最善の行動を直ちに実行。上階への垂直避難または近隣のより安全な高台へ退避。
+                          </p>
+                        </div>
+
+                        <div className={`p-5 rounded-inner bg-pure-white border-2 ${themeBorderClass} shadow-shop-soft`}>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className={`text-[11px] uppercase tracking-wider ${themeColorClass} font-semibold`}>LEVEL 04 / MANDATORY EVACUATION</span>
+                            <span className={`w-2 h-2 rounded-full ${themeBgClass}`}></span>
+                          </div>
+                          <h4 className={`text-base font-bold ${themeColorClass}`}>警戒レベル4: 避難指示 (全員避難)</h4>
+                          <p className="text-[13px] leading-relaxed mt-1 text-ink-black font-medium">
+                            危険な場所にいる方は全員、指定緊急避難場所や安全な高台・ホテル等へ立ち退き避難を完了してください。
+                          </p>
+                        </div>
+
+                        <div className="p-5 rounded-inner bg-canvas-mist border border-faint-border">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[11px] text-muted-gray uppercase tracking-wider font-semibold">LEVEL 03 / PRE-EVACUATION</span>
+                          </div>
+                          <h4 className="text-base font-bold text-ink-black">警戒レベル3: 高齢者等避難</h4>
+                          <p className="text-[13px] text-muted-gray mt-1 leading-relaxed">
+                            避難に時間を要する方（高齢者、障がい者、乳幼児連れ等）は速やかに避難を開始。一般の方も非常持ち出し品の確認を完了。
+                          </p>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
 
-                {/* River Intelligence View */}
+                {/* River or Coast Intelligence View */}
                 {prepTab === 'rivers' && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {MIYAZAKI_RIVERS_INFO.map(r => (
-                      <div key={r.name} className="p-5 rounded-inner bg-canvas-mist border border-faint-border flex flex-col justify-between text-left">
-                        <div>
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="text-[11px] text-muted-gray">{r.length}</span>
-                            <span className="text-[11px] text-muted-gray font-mono">BASIN #{r.code}</span>
+                    {isTsunami ? (
+                      MIYAZAKI_TSUNAMI_INSIGHTS.map(t => (
+                        <div key={t.area} className="p-5 rounded-inner bg-canvas-mist border border-faint-border flex flex-col justify-between text-left">
+                          <div>
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="text-[11px] text-shop-ocean font-bold">{t.arrival}</span>
+                              <span className="text-[11px] text-muted-gray font-mono">{t.height}</span>
+                            </div>
+                            <h4 className="text-base font-bold text-ink-black mb-1.5">{t.area}</h4>
+                            <p className="text-[13px] text-muted-gray leading-relaxed font-normal">{t.tips}</p>
                           </div>
-                          <h4 className="text-base font-bold text-ink-black mb-1.5">{r.name}</h4>
-                          <p className="text-[13px] text-muted-gray leading-relaxed font-normal">{r.feature}</p>
+                          <div className="pt-3 mt-3 border-t border-faint-border text-[11px] text-muted-gray flex items-center justify-between">
+                            <span>宮崎市地域防災計画 津波編</span>
+                            <span className="text-shop-ocean font-semibold">津波即時退避</span>
+                          </div>
                         </div>
-                        <div className="pt-3 mt-3 border-t border-faint-border">
-                          <a 
-                            href={r.telemetryUrl} 
-                            target="_blank" 
-                            rel="noreferrer" 
-                            className="text-[13px] font-medium text-shop-violet hover:underline flex items-center justify-between cursor-pointer"
-                          >
-                            <span>川の防災情報 水位テレメータ</span>
-                            <span>→</span>
-                          </a>
+                      ))
+                    ) : (
+                      MIYAZAKI_RIVERS_INFO.map(r => (
+                        <div key={r.name} className="p-5 rounded-inner bg-canvas-mist border border-faint-border flex flex-col justify-between text-left">
+                          <div>
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="text-[11px] text-muted-gray">{r.length}</span>
+                              <span className="text-[11px] text-muted-gray font-mono">BASIN #{r.code}</span>
+                            </div>
+                            <h4 className="text-base font-bold text-ink-black mb-1.5">{r.name}</h4>
+                            <p className="text-[13px] text-muted-gray leading-relaxed font-normal">{r.feature}</p>
+                          </div>
+                          <div className="pt-3 mt-3 border-t border-faint-border">
+                            <a 
+                              href={r.telemetryUrl} 
+                              target="_blank" 
+                              rel="noreferrer" 
+                              className="text-[13px] font-medium text-shop-violet hover:underline flex items-center justify-between cursor-pointer"
+                            >
+                              <span>川の防災情報 水位テレメータ</span>
+                              <span>→</span>
+                            </a>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))
+                    )}
                   </div>
                 )}
               </div>
             </section>
           </main>
 
-          {/* Footer (Shop Dark Band, Columnar, 1200px container) */}
+          {/* Footer */}
           <footer className="bg-ink-black text-pure-white py-12 px-6 text-left border-t border-slate-ink">
             <div className="max-w-[1200px] mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="w-5 h-5 rounded-full bg-shop-violet text-pure-white flex items-center justify-center text-[10px] font-bold">
+                  <span className={`w-5 h-5 rounded-full ${themeBgClass} text-pure-white flex items-center justify-center text-[10px] font-bold`}>
                     M
                   </span>
-                  <span className="text-base font-bold text-pure-white tracking-tight">Miえるん（宮崎市 洪水ハザード査定）</span>
+                  <span className="text-base font-bold text-pure-white tracking-tight">Miえるん（宮崎市 洪水・津波ハザード査定）</span>
                 </div>
                 <p className="text-[13px] text-warm-fog max-w-md leading-relaxed font-normal">
-                  国土交通省「重ねるハザードマップ」および国土地理院タイルデータを活用した単一ファイル完結型洪水解析システム。
+                  国土交通省「重ねるハザードマップ」および国土地理院タイルデータ（洪水L2・津波新凡例）を活用した単一ファイル完結型総合水害シミュレーションシステム。
                 </p>
               </div>
 
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 text-[12px] text-warm-fog font-normal">
                 <span>宮崎市危機管理課公表データ準拠</span>
                 <span className="hidden sm:inline">·</span>
-                <span>STYLED UNDER SHOP SPECIFICATION</span>
+                <span>SHOP PROTOCOL DESIGN SYSTEM</span>
               </div>
             </div>
           </footer>
 
-          {/* Hotline Modal (Shop Pillow Soft Modal Card, 28px radius) */}
+          {/* Hotline Modal */}
           {isHotlineOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-black/40 backdrop-blur-sm">
               <div className="bg-pure-white rounded-card shadow-shop-card border border-faint-border max-w-md w-full p-7 text-left">
@@ -1203,19 +1502,21 @@
             </div>
           )}
 
-          {/* Assessment Report Modal (Shop Pure White Spotlight Card) */}
+          {/* Assessment Report Modal */}
           {isReportOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-black/40 backdrop-blur-sm">
               <div className="bg-pure-white rounded-card shadow-shop-card border border-faint-border max-w-lg w-full p-8 text-left">
                 <div className="flex justify-between items-start mb-6 pb-4 border-b border-faint-border">
                   <div>
                     <span className="text-[11px] uppercase tracking-wider text-muted-gray font-semibold block">OFFICIAL RECORD</span>
-                    <h3 className="text-2xl font-bold text-ink-black">Miえるん 洪水リスク査定書</h3>
+                    <h3 className="text-2xl font-bold text-ink-black">
+                      Miえるん {isTsunami ? '津波リスク査定書' : '洪水リスク査定書'}
+                    </h3>
                   </div>
                   <div className="flex gap-2">
                     <button 
                       onClick={() => window.print()} 
-                      className="h-8 px-4 rounded-pill bg-shop-violet text-pure-white text-[12px] font-semibold cursor-pointer shadow-shop-violet"
+                      className={`h-8 px-4 rounded-pill ${themeBgClass} text-pure-white text-[12px] font-semibold cursor-pointer ${themeShadowClass}`}
                     >
                       印刷・PDF
                     </button>
@@ -1240,24 +1541,39 @@
                       <span className="text-ink-black font-semibold">{isSafe ? '区域外 (浸水想定なし)' : '浸水想定区域内'}</span>
                     </div>
                     <div className="p-4 bg-canvas-mist rounded-inner border border-faint-border">
-                      <span className="text-[11px] text-muted-gray font-medium block">想定最大水深</span>
-                      <span className="text-shop-violet text-xl font-bold">{hazardResult ? hazardResult.depthRangeText : '0m'}</span>
+                      <span className="text-[11px] text-muted-gray font-medium block">
+                        {isTsunami ? '津波最大水深' : '想定最大水深'}
+                      </span>
+                      <span className={`${themeColorClass} text-xl font-bold`}>{hazardResult ? hazardResult.depthRangeText : '0m'}</span>
                     </div>
                   </div>
 
-                  <div className="p-4 bg-pure-white rounded-inner border-2 border-shop-violet text-ink-black shadow-shop-soft">
-                    <span className="text-[11px] uppercase tracking-wider block mb-1 text-shop-violet font-semibold">推奨避難プロトコル</span>
+                  {isTsunami && (
+                    <div className="p-4 bg-canvas-mist rounded-inner border border-faint-border grid grid-cols-2 gap-3">
+                      <div>
+                        <span className="text-[11px] text-muted-gray font-medium block">海岸推定距離</span>
+                        <span className="text-ink-black font-semibold">約 {hazardResult ? hazardResult.estimatedDistToCoastKm : '-'} km</span>
+                      </div>
+                      <div>
+                        <span className="text-[11px] text-muted-gray font-medium block">津波第1波到達目安</span>
+                        <span className="text-tsunami-red font-bold">{hazardResult ? hazardResult.tsunamiArrivalEst : '-'}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className={`p-4 bg-pure-white rounded-inner border-2 ${themeBorderClass} text-ink-black shadow-shop-soft`}>
+                    <span className={`text-[11px] uppercase tracking-wider block mb-1 ${themeColorClass} font-semibold`}>推奨避難プロトコル</span>
                     <p className="text-[13px] leading-relaxed font-medium">{hazardResult ? hazardResult.evacuationAction : '自宅待機または安全確認'}</p>
                   </div>
 
                   <p className="text-[11px] text-muted-gray leading-relaxed">
-                    ※ 本査定書は国土地理院浸水想定タイル（大淀川水系L2想定）を基に生成された参考指標です。実際の避難時は自治体の避難指示及び防災無線に従ってください。
+                    ※ 本査定書は国土地理院浸水想定タイル（{isTsunami ? '南海トラフ地震津波浸水想定' : '大淀川水系L2想定'}）を基に生成された参考指標です。実際の避難時は宮崎市の避難指示及び防災無線に従ってください。
                   </p>
                 </div>
 
                 <button 
                   onClick={() => setIsReportOpen(false)} 
-                  className="w-full mt-5 h-10 rounded-pill bg-shop-violet text-pure-white text-[13px] font-semibold cursor-pointer hover:opacity-95 shadow-shop-violet"
+                  className={`w-full mt-5 h-10 rounded-pill ${themeBgClass} text-pure-white text-[13px] font-semibold cursor-pointer hover:opacity-95 ${themeShadowClass}`}
                 >
                   確認完了
                 </button>
@@ -1269,7 +1585,6 @@
       );
     }
 
-    // Mount React Root
     ReactDOM.createRoot(document.getElementById('root')).render(<App />);
   </script>
 </body>
