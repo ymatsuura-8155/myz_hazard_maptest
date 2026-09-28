@@ -498,9 +498,14 @@
       const sheltersGroupRef = useRef(null);
       const floodOverlayRef = useRef(null);
       const tsunamiOverlayRef = useRef(null);
+      const hazardModeRef = useRef(hazardMode);
+      useEffect(() => {
+        hazardModeRef.current = hazardMode;
+      }, [hazardMode]);
 
       // ハザード査定実行
-      const runAssessment = useCallback(async (query, mode = hazardMode) => {
+      const runAssessment = useCallback(async (query, mode) => {
+        const targetMode = mode || hazardModeRef.current;
         setIsLoading(true);
         setSearchError(null);
         try {
@@ -512,17 +517,17 @@
           }
           setCurrentAddress(geo.displayName);
           setInputQuery(geo.displayName);
-          const hazard = await analyzeHazardForLocation(geo.lat, geo.lng, geo.displayName, mode);
+          const hazard = await analyzeHazardForLocation(geo.lat, geo.lng, geo.displayName, targetMode);
           setHazardResult(hazard);
-          setNearbyShelters(findNearbyShelters(geo.lat, geo.lng, mode, 6));
+          setNearbyShelters(findNearbyShelters(geo.lat, geo.lng, targetMode, 6));
         } catch (e) {
           setSearchError('ハザード解析データの照会に失敗しました。');
         } finally {
           setIsLoading(false);
         }
-      }, [hazardMode]);
+      }, []);
 
-      // モード切り替えハンドラ
+      // モード切り替えハンドラ（住所・入力内容を保持したまま査定のみ再実行）
       const handleModeChange = (newMode) => {
         if (newMode === hazardMode) return;
         setHazardMode(newMode);
@@ -538,7 +543,7 @@
           }
         }
 
-        // 再計算
+        // 現在査定中の地点があればその位置・住所をそのまま保持して再評価
         if (hazardResult) {
           setIsLoading(true);
           analyzeHazardForLocation(hazardResult.lat, hazardResult.lng, hazardResult.address, newMode)
@@ -546,7 +551,12 @@
               setHazardResult(res);
               setNearbyShelters(findNearbyShelters(hazardResult.lat, hazardResult.lng, newMode, 6));
             })
+            .catch(() => {
+              setSearchError('ハザード解析データの再照会に失敗しました。');
+            })
             .finally(() => setIsLoading(false));
+        } else if (inputQuery && inputQuery.trim()) {
+          runAssessment(inputQuery, newMode);
         }
       };
 
@@ -692,7 +702,7 @@
         }
       }, [hazardResult, nearbyShelters, hazardMode]);
 
-      // 初回ロード
+      // 初回ロード（コンポーネントマウント時のみ1度実行）
       useEffect(() => {
         runAssessment('宮崎市橘通西1丁目1-1', 'flood');
       }, [runAssessment]);
@@ -863,7 +873,18 @@
                     placeholder="宮崎市内の住所やランドマーク（例: 橘通西, 青島2丁目, 港1丁目, 大淀）"
                     className="flex-1 h-12 bg-transparent text-[14px] sm:text-[15px] text-ink-black placeholder:text-muted-gray focus:outline-none font-normal"
                   />
-                  <div className="flex items-center gap-2">
+                  {}
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    {inputQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setInputQuery('')}
+                        className="w-7 h-7 rounded-full text-muted-gray hover:text-ink-black hover:bg-canvas-mist transition flex items-center justify-center text-xs font-bold cursor-pointer"
+                        title="入力をクリア"
+                      >
+                        ✕
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={handleGPS}
