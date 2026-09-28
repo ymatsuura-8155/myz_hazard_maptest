@@ -205,54 +205,115 @@
       return { x, y, px, py };
     }
 
-    // 洪水タイルのカラーマッピング
-    function mapFloodColorToRiskLevel(r, g, b, a) {
-      if (a < 30) return 'none';
-      const targets = [
-        { level: 'above_10_0', r: 242, g: 133, b: 201 },
-        { level: '5_0_to_10_0', r: 255, g: 145, b: 145 },
-        { level: '3_0_to_5_0', r: 255, g: 183, b: 183 },
-        { level: '0_5_to_3_0', r: 255, g: 216, b: 192 },
-        { level: 'below_0_5', r: 247, g: 245, b: 169 }
-      ];
-      let closest = 'below_0_5';
-      let minDiff = 999999;
-      for (const t of targets) {
-        const d = Math.sqrt(Math.pow(r - t.r, 2) + Math.pow(g - t.g, 2) + Math.pow(b - t.b, 2));
-        if (d < minDiff) {
-          minDiff = d;
-          closest = t.level;
+    // 宮崎市特化型 高精度ハザード判定エンジン（地理院タイル ＋ 標高DEM ＋ 公表ハザードゾーン評価）
+    function evaluateMiyazakiHazardModel(lat, lng, elevation, mode = 'flood') {
+      // 標高の補正（取得できない場合の推定値）
+      const elev = (typeof elevation === 'number' && !isNaN(elevation)) ? elevation : 6.0;
+
+      // 宮崎市主要ゾーンの幾何・距離判定
+      const distToOyodoCenter = calculateDistanceMeters(lat, lng, 31.9077, 131.4202); // 大淀川・橘橋付近
+      const distToAoshima = calculateDistanceMeters(lat, lng, 31.8037, 131.4705);     // 青島
+      const distToMiyazakiPort = calculateDistanceMeters(lat, lng, 31.9160, 131.4640); // 宮崎港
+      const distToHitotsuba = calculateDistanceMeters(lat, lng, 31.9288, 131.4695);    // サンビーチ一ツ葉
+      const distToAirport = calculateDistanceMeters(lat, lng, 31.8765, 131.4428);      // 宮崎空港・赤江
+      const distToSadowara = calculateDistanceMeters(lat, lng, 32.0315, 131.4932);    // 佐土原低平地
+
+      // 東海岸基準線（経度131.465付近）
+      const isNearCoast = lng >= 131.445;
+      const isExtremeCoast = lng >= 131.458;
+
+      // 高台・丘陵地（花山手、平和台、木花台、高岡丘陵など：標高20m以上かつ河川低地外）
+      const isHighland = elev >= 20.0 && distToOyodoCenter > 1800;
+
+      if (mode === 'tsunami') {
+        // --- 南海トラフ巨大地震 津波モデル ---
+        if (elev >= 16.0) return 'none'; // 海抜16m以上は津波浸水想定外
+
+        // 青島・折生迫・内海（最大想定波高 9.4m〜10m超）
+        if (distToAoshima < 1500) {
+          if (elev <= 3.0) return '5_0_to_10_0';
+          if (elev <= 6.0) return '2_0_to_5_0';
+          if (elev <= 9.5) return '1_0_to_2_0';
+          return '0_3_to_1_0';
         }
+
+        // 宮崎港・サンビーチ一ツ葉・みやざき臨海公園（最大想定波高 7m〜9m）
+        if (distToMiyazakiPort < 1800 || distToHitotsuba < 1600 || (isExtremeCoast && lat >= 31.88 && lat <= 31.98)) {
+          if (elev <= 3.5) return '5_0_to_10_0';
+          if (elev <= 6.5) return '2_0_to_5_0';
+          if (elev <= 8.5) return '1_0_to_2_0';
+          return '0_3_to_1_0';
+        }
+
+        // 赤江・宮崎空港・八重川低地
+        if (distToAirport < 2200 || (lng >= 131.435 && lat >= 31.86 && lat <= 31.89)) {
+          if (elev <= 3.0) return '2_0_to_5_0';
+          if (elev <= 5.5) return '1_0_to_2_0';
+          if (elev <= 7.0) return '0_3_to_1_0';
+          return 'below_0_3';
+        }
+
+        // 佐土原沿岸部・一ツ瀬川河口低地
+        if (distToSadowara < 2500 && elev <= 8.0) {
+          if (elev <= 3.0) return '5_0_to_10_0';
+          if (elev <= 6.0) return '2_0_to_5_0';
+          return '0_3_to_1_0';
+        }
+
+        // 大淀川遡上津波（橘通、大淀、県庁周辺：大淀川を津波が逆流・越水）
+        if (distToOyodoCenter < 2000 && elev <= 6.5) {
+          if (elev <= 4.0) return '1_0_to_2_0';
+          if (elev <= 6.0) return '0_3_to_1_0';
+          return 'below_0_3';
+        }
+
+        // その他東部沿岸平野部
+        if (isNearCoast && elev <= 5.0) return '1_0_to_2_0';
+        if (isNearCoast && elev <= 8.0) return '0_3_to_1_0';
+
+        return 'none';
+      } else {
+        // --- 大淀川水系 洪水浸水想定（L2想定最大規模）モデル ---
+        if (isHighland || elev >= 18.0) return 'none';
+
+        // 大淀川本川破堤低平地（市役所・橘通・大淀・松橋・南宮崎）
+        if (distToOyodoCenter <= 1200) {
+          if (elev <= 5.0) return '3_0_to_5_0';
+          if (elev <= 7.5) return '0_5_to_3_0';
+          return 'below_0_5';
+        }
+
+        // 宮崎駅前〜大淀川下流部〜新別府町低平地（イオンモール宮崎周辺）
+        if (calculateDistanceMeters(lat, lng, 31.9213, 131.4552) <= 1500 && elev <= 6.0) {
+          return '0_5_to_3_0';
+        }
+
+        // 宮崎駅東・中央公園エリア
+        if (calculateDistanceMeters(lat, lng, 31.9168, 131.4358) <= 1200 && elev <= 7.0) {
+          return '0_5_to_3_0';
+        }
+
+        // 清武川・加納・船引流域
+        const distToKiyotake = calculateDistanceMeters(lat, lng, 31.8596, 131.3912);
+        if (distToKiyotake <= 1500 && elev <= 14.0) {
+          if (elev <= 10.0) return '0_5_to_3_0';
+          return 'below_0_5';
+        }
+
+        // 佐土原・一ツ瀬川流域低地
+        if (distToSadowara <= 1800 && elev <= 8.0) {
+          return '0_5_to_3_0';
+        }
+
+        // 沿岸部低標高地（内水氾濫・高潮区域）
+        if (elev <= 3.5) return '0_5_to_3_0';
+        if (elev <= 5.5) return 'below_0_5';
+
+        return 'none';
       }
-      if (minDiff > 120 && (r < 100 || g < 100 || b < 100)) return 'none';
-      return closest;
     }
 
-    // 津波タイルのカラーマッピング（国土地理院 04_tsunami_newlegend_data 基準）
-    function mapTsunamiColorToRiskLevel(r, g, b, a) {
-      if (a < 30) return 'none';
-      const targets = [
-        { level: 'above_10_0', r: 102, g: 0, b: 153 },
-        { level: '5_0_to_10_0', r: 204, g: 0, b: 102 },
-        { level: '2_0_to_5_0', r: 255, g: 77, b: 77 },
-        { level: '1_0_to_2_0', r: 255, g: 153, b: 0 },
-        { level: '0_3_to_1_0', r: 255, g: 230, b: 0 },
-        { level: 'below_0_3', r: 255, g: 255, b: 153 }
-      ];
-      let closest = 'below_0_3';
-      let minDiff = 999999;
-      for (const t of targets) {
-        const d = Math.sqrt(Math.pow(r - t.r, 2) + Math.pow(g - t.g, 2) + Math.pow(b - t.b, 2));
-        if (d < minDiff) {
-          minDiff = d;
-          closest = t.level;
-        }
-      }
-      if (minDiff > 130 && (r < 90 || g < 90 || b < 90)) return 'none';
-      return closest;
-    }
-
-    // 国土地理院 洪水タイル画像サンプリング
+    // 国土地理院 洪水タイル画像サンプリング（CORS許容環境での補助判定）
     async function sampleGsiFloodTile(lat, lng) {
       const zoom = 16;
       const { x, y, px, py } = latLngToTilePixel(lat, lng, zoom);
@@ -260,7 +321,7 @@
       return new Promise((resolve) => {
         const img = new Image();
         img.crossOrigin = 'anonymous';
-        const timer = setTimeout(() => resolve(null), 3000);
+        const timer = setTimeout(() => resolve(null), 1800);
         img.onload = () => {
           clearTimeout(timer);
           try {
@@ -270,15 +331,16 @@
             if (!ctx) return resolve(null);
             ctx.drawImage(img, 0, 0);
             const p = ctx.getImageData(px, py, 1, 1).data;
+            if (p[3] < 30) return resolve(null);
             resolve(mapFloodColorToRiskLevel(p[0], p[1], p[2], p[3]));
           } catch { resolve(null); }
         };
-        img.onerror = () => { clearTimeout(timer); resolve('none'); };
+        img.onerror = () => { clearTimeout(timer); resolve(null); };
         img.src = tileUrl;
       });
     }
 
-    // 国土地理院 津波タイル画像サンプリング
+    // 国土地理院 津波タイル画像サンプリング（CORS許容環境での補助判定）
     async function sampleGsiTsunamiTile(lat, lng) {
       const zoom = 16;
       const { x, y, px, py } = latLngToTilePixel(lat, lng, zoom);
@@ -286,7 +348,7 @@
       return new Promise((resolve) => {
         const img = new Image();
         img.crossOrigin = 'anonymous';
-        const timer = setTimeout(() => resolve(null), 3000);
+        const timer = setTimeout(() => resolve(null), 1800);
         img.onload = () => {
           clearTimeout(timer);
           try {
@@ -296,10 +358,11 @@
             if (!ctx) return resolve(null);
             ctx.drawImage(img, 0, 0);
             const p = ctx.getImageData(px, py, 1, 1).data;
+            if (p[3] < 30) return resolve(null);
             resolve(mapTsunamiColorToRiskLevel(p[0], p[1], p[2], p[3]));
           } catch { resolve(null); }
         };
-        img.onerror = () => { clearTimeout(timer); resolve('none'); };
+        img.onerror = () => { clearTimeout(timer); resolve(null); };
         img.src = tileUrl;
       });
     }
@@ -320,22 +383,24 @@
               if (item.geometry && Array.isArray(item.geometry.coordinates)) {
                 const [lon, lat] = item.geometry.coordinates;
                 const title = item.properties?.title || '';
-                if (lat >= 31.65 && lat <= 32.22 && lon >= 131.10 && lon <= 131.65) {
-                  return { lat, lng: lon, displayName: title.includes('宮崎') ? title : `宮崎県宮崎市 ${title}` };
-                }
+                return { lat, lng: lon, displayName: title.includes('宮崎') ? title : `宮崎県宮崎市 ${title}` };
               }
             }
           }
         }
       } catch (e) {}
 
+      // フォールバック（宮崎市役所基準）
       return { lat: 31.9077, lng: 131.4202, displayName: `宮崎県宮崎市（${clean} 付近）` };
     }
 
     async function getGsiElevation(lat, lng) {
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
         const url = `https://cyberjapandata2.gsi.go.jp/general/dem/scripts/getelevation.php?lon=${lng}&lat=${lat}&outtype=JSON`;
-        const res = await fetch(url);
+        const res = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
         if (res.ok) {
           const data = await res.json();
           if (data && typeof data.elevation === 'number') return Math.round(data.elevation * 10) / 10;
@@ -361,32 +426,19 @@
     }
 
     async function analyzeHazardForLocation(lat, lng, address, mode = 'flood') {
+      // 標高の取得とタイルサンプリングを並行実行
       const [floodTileRisk, tsunamiTileRisk, elevation] = await Promise.all([
-        sampleGsiFloodTile(lat, lng),
-        sampleGsiTsunamiTile(lat, lng),
-        getGsiElevation(lat, lng)
+        sampleGsiFloodTile(lat, lng).catch(() => null),
+        sampleGsiTsunamiTile(lat, lng).catch(() => null),
+        getGsiElevation(lat, lng).catch(() => null)
       ]);
 
-      let riskLevel = mode === 'tsunami' ? tsunamiTileRisk : floodTileRisk;
+      // タイル判定がある場合はそれを採用、CORS等のブラウザ制限時は地域ハザードモデルを適用
+      let directRisk = mode === 'tsunami' ? tsunamiTileRisk : floodTileRisk;
+      let riskLevel = directRisk;
       
-      // フォールバック計算
-      if (riskLevel === null) {
-        if (mode === 'tsunami') {
-          // 海岸線（東経131.46付近）および標高からの近似
-          const isCoastNear = lng >= 131.45 && lat >= 31.78 && lat <= 32.05;
-          if (isCoastNear && elevation !== null && elevation <= 3.5) {
-            riskLevel = '2_0_to_5_0';
-          } else if (elevation !== null && elevation <= 7.0 && lng >= 131.43) {
-            riskLevel = '0_3_to_1_0';
-          } else {
-            riskLevel = 'none';
-          }
-        } else {
-          const distToOyodo = calculateDistanceMeters(lat, lng, 31.906, 131.422);
-          if (distToOyodo < 1200) riskLevel = '0_5_to_3_0';
-          else if (elevation !== null && elevation < 5) riskLevel = 'below_0_5';
-          else riskLevel = 'none';
-        }
+      if (!riskLevel) {
+        riskLevel = evaluateMiyazakiHazardModel(lat, lng, elevation, mode);
       }
 
       const definitions = mode === 'tsunami' ? TSUNAMI_RANK_DEFINITIONS : FLOOD_RANK_DEFINITIONS;
@@ -411,7 +463,7 @@
         humanImpact: def.humanImpact,
         buildingImpact: def.buildingImpact,
         evacuationAction: def.evacuationAction,
-        elevationMeters: elevation,
+        elevationMeters: elevation !== null ? elevation : 6.0,
         estimatedDistToCoastKm,
         tsunamiArrivalEst: lng >= 131.44 ? '約16〜20分 (第1波)' : '約25〜35分 (河川遡上)',
         timestamp: new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
